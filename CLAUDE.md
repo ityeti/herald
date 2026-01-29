@@ -15,7 +15,7 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 **Decisions made:**
 - TTS engine: **pyttsx3** for MVP (simple, offline) — can swap to edge-tts later for better voices
 - Hotkey library: **keyboard** (`keyboard.add_hotkey()`)
-- Default hotkey: **Ctrl+Alt+Shift+R**
+- Default hotkey: **Alt+S** (speak)
 - Stop hotkey: **Escape**
 
 ## Tech Stack

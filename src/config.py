@@ -5,7 +5,8 @@ Manages settings for the TTS utility.
 """
 
 # Default hotkey (can be changed in settings later)
-DEFAULT_HOTKEY = "ctrl+alt+shift+r"
+# Options considered: alt+r, ctrl+shift+r, win+alt+r, f9, ctrl+., alt+s
+DEFAULT_HOTKEY = "alt+s"
 
 # Stop hotkey
 STOP_HOTKEY = "escape"

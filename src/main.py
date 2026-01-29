@@ -8,7 +8,7 @@ Usage:
     python main.py
 
 Hotkeys:
-    Ctrl+Alt+Shift+R - Read clipboard text
+    Alt+S - Read clipboard text (speak)
     Escape - Stop reading
 
 Requires admin privileges on Windows for global hotkeys.
