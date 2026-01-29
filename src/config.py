@@ -21,7 +21,7 @@ SPEED_DOWN_HOTKEY = "alt+["   # Decrease rate
 QUIT_HOTKEY = "alt+q"         # Exit application
 
 # TTS defaults
-DEFAULT_RATE = 350   # Words per minute
+DEFAULT_RATE = 500   # Words per minute
 MIN_RATE = 50
 MAX_RATE = 600
 RATE_STEP = 25       # Amount to change per speed hotkey press
