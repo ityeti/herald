@@ -44,15 +44,9 @@ def on_stop_hotkey():
 
 def main():
     """Main entry point."""
-    print("=" * 50)
-    print("Herald - Text-to-Speech Utility")
-    print("=" * 50)
-    print(f"Speak hotkey: {DEFAULT_HOTKEY}")
-    print(f"Stop hotkey:  {STOP_HOTKEY}")
-    print("-" * 50)
-    print("Copy text to clipboard, then press the hotkey to hear it.")
-    print("Press Ctrl+C in this window to exit.")
-    print("=" * 50)
+    # Minimal output - launcher batch file shows the banner
+    print("Ready. Copy text to clipboard, press Alt+S to speak.")
+    print()
 
     # Register hotkeys
     keyboard.add_hotkey(DEFAULT_HOTKEY, on_speak_hotkey, suppress=True)

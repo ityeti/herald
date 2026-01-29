@@ -10,7 +10,7 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 
 ## Current Status
 
-**Phase:** MVP Implementation (scaffolding complete)
+**Phase:** MVP Complete (tested and working)
 
 **Decisions made:**
 - TTS engine: **pyttsx3** for MVP (simple, offline) — can swap to edge-tts later for better voices
@@ -42,15 +42,13 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 ## Essential Commands
 
 ```bash
-# Create virtual environment
+# Recommended: Double-click Launch_Herald.bat (auto-elevates, auto-installs)
+
+# Manual setup (if needed)
 python -m venv venv
 venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Run (requires admin for global hotkeys)
-python src/main.py
+python src/main.py   # requires admin terminal
 ```
 
 ## MVP Tasks
@@ -60,23 +58,26 @@ python src/main.py
 - [x] Implement TTS engine wrapper (pyttsx3)
 - [x] Implement clipboard text grabbing
 - [x] Add stop functionality (Escape key)
-- [ ] Add adjustable speech rate UI/hotkeys
-- [ ] Test and debug on Windows
+- [x] UAC-elevating launcher (`Launch_Herald.bat`)
+- [x] Test on Windows (Python 3.12)
 
 ## MVP Scope
 
-1. Global hotkey (Ctrl+Alt+Shift+R) triggers TTS
+1. Global hotkey (Alt+S) triggers TTS
 2. Reads clipboard text
 3. Configurable speech rate (in config.py)
 4. Stop with Escape key
+5. Double-click launcher with auto-setup
 
 ## Next Steps (Phase 2)
 
+- [ ] Speed up/slow down hotkeys (Alt+[ / Alt+])
+- [ ] File logging (loguru, like whisper-typer)
+- [ ] Module self-tests (`if __name__ == "__main__":`)
 - [ ] System tray icon with controls
 - [ ] Pause/resume functionality
-- [ ] Speed up/slow down hotkeys
 - [ ] Voice selection
-- [ ] Settings persistence
+- [ ] Settings persistence (JSON config)
 
 ## Additional Documentation
 
