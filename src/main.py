@@ -112,7 +112,7 @@ def main():
     keyboard.add_hotkey(QUIT_HOTKEY, on_quit, suppress=True)
 
     engine = get_engine()
-    logger.info(f"Current speed: {engine.rate} wpm")
+    logger.info(f"Voice: {engine.voice_name}, Speed: {engine.rate} wpm")
 
     try:
         # Poll for quit flag (keyboard.wait() blocks forever)

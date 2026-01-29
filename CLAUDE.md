@@ -36,8 +36,9 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 | src/main.py | Entry point, hotkey registration |
 | src/tts_engine.py | TTS abstraction layer |
 | src/text_grab.py | Clipboard/selection handling |
-| src/config.py | Settings and constants |
+| src/config.py | Settings management |
 | src/utils.py | Logging setup |
+| config/ | User settings (settings.json) |
 | logs/ | Application logs (herald.log) |
 | .claude/docs/ | Research and design docs |
 
@@ -76,11 +77,12 @@ python src/main.py   # requires admin terminal
 - [x] Speed up/slow down hotkeys (Alt+[ / Alt+]) with audio feedback
 - [x] File logging (loguru → logs/herald.log)
 - [x] Quit hotkey (Alt+Q)
+- [x] Settings persistence (config/settings.json)
+- [x] Voice selection (zira/david via settings)
 - [ ] Module self-tests (`if __name__ == "__main__":`)
 - [ ] System tray icon with controls
 - [ ] Pause/resume functionality
-- [ ] Voice selection
-- [ ] Settings persistence (JSON config)
+- [ ] edge-tts integration (better voices, requires internet)
 
 ## Additional Documentation
 

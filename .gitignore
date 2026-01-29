@@ -1,6 +1,9 @@
 # Virtual environment
 venv/
 
+# User settings (use settings.example.json as template)
+config/settings.json
+
 # Python
 __pycache__/
 *.py[cod]
