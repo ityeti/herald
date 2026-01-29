@@ -1,6 +1,6 @@
 # Herald
 
-Text-to-speech utility for Windows — the inverse of [whisper](../whisper/). Press a hotkey, hear selected text read aloud.
+Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer/). Press a hotkey, hear selected text read aloud.
 
 ## Session Start
 
@@ -10,54 +10,73 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper/). Pr
 
 ## Current Status
 
-**Phase:** Ready to implement MVP (research complete)
+**Phase:** MVP Implementation (scaffolding complete)
 
 **Decisions made:**
 - TTS engine: **pyttsx3** for MVP (simple, offline) — can swap to edge-tts later for better voices
 - Hotkey library: **keyboard** (`keyboard.add_hotkey()`)
 - Default hotkey: **Ctrl+Alt+Shift+R**
+- Stop hotkey: **Escape**
 
 ## Tech Stack
 
 | Component | Choice | Notes |
 |-----------|--------|-------|
-| Language | Python | Matches whisper, shared tooling |
+| Language | Python 3.10+ | Matches whisper, shared tooling |
 | TTS Engine | pyttsx3 | Simple wrapper, works offline |
 | Hotkey | keyboard | `pip install keyboard` |
-| GUI | Minimal/systray | Like whisper's approach |
+| Clipboard | pyperclip | Cross-platform clipboard access |
+| GUI | Minimal/systray | Like whisper's approach (Phase 2) |
 
 ## Key Directories
 
 | Directory | Purpose |
 |-----------|---------|
 | src/ | Main application code |
+| src/main.py | Entry point, hotkey registration |
+| src/tts_engine.py | TTS abstraction layer |
+| src/text_grab.py | Clipboard/selection handling |
+| src/config.py | Settings and constants |
 | .claude/docs/ | Research and design docs |
 
 ## Essential Commands
 
 ```bash
-# Install dependencies (once setup)
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-# Run
+# Run (requires admin for global hotkeys)
 python src/main.py
 ```
 
 ## MVP Tasks
 
-- [ ] Set up project structure (`src/`, `requirements.txt`)
-- [ ] Implement global hotkey listener (keyboard library)
-- [ ] Implement TTS engine wrapper (pyttsx3)
-- [ ] Implement clipboard/selection text grabbing
-- [ ] Add adjustable speech rate
-- [ ] Add stop functionality (Escape key)
+- [x] Set up project structure (`src/`, `requirements.txt`)
+- [x] Implement global hotkey listener (keyboard library)
+- [x] Implement TTS engine wrapper (pyttsx3)
+- [x] Implement clipboard text grabbing
+- [x] Add stop functionality (Escape key)
+- [ ] Add adjustable speech rate UI/hotkeys
+- [ ] Test and debug on Windows
 
 ## MVP Scope
 
 1. Global hotkey (Ctrl+Alt+Shift+R) triggers TTS
-2. Reads clipboard or selected text
-3. Adjustable speech rate
+2. Reads clipboard text
+3. Configurable speech rate (in config.py)
 4. Stop with Escape key
+
+## Next Steps (Phase 2)
+
+- [ ] System tray icon with controls
+- [ ] Pause/resume functionality
+- [ ] Speed up/slow down hotkeys
+- [ ] Voice selection
+- [ ] Settings persistence
 
 ## Additional Documentation
 
@@ -66,7 +85,13 @@ python src/main.py
 | TTS Research | `.claude/docs/tts-options.md` | Choosing TTS engine |
 | Architecture | `.claude/docs/architecture.md` | Understanding design decisions |
 
+## Tracking
+
+**Central backlog:** [../dev-oversight/BACKLOG.md](../dev-oversight/BACKLOG.md)
+
+When completing significant work, update the Herald section in the dev-oversight BACKLOG.
+
 ## Related
 
-- [whisper](../whisper/) — Voice-to-text (input), herald is the inverse (output)
-- [dev-oversight BACKLOG](../dev-oversight/BACKLOG.md) — Project tracked there
+- [whisper-typer](../whisper-typer/) — Voice-to-text (input), herald is the inverse (output)
+- [dev-oversight](../dev-oversight/) — Project oversight and tracking
