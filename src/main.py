@@ -18,6 +18,7 @@ Requires admin privileges on Windows for global hotkeys.
 """
 
 import sys
+import time
 import keyboard
 from loguru import logger
 
@@ -28,6 +29,9 @@ from config import (
 from tts_engine import get_engine
 from text_grab import get_text_to_speak
 from utils import setup_logging
+
+# Flag to signal main loop to exit
+_quit_requested = False
 
 
 def on_speak_hotkey():
@@ -80,13 +84,12 @@ def on_speed_down():
 
 
 def on_quit():
-    """Exit the application."""
-    logger.info("Quit hotkey pressed - exiting")
+    """Signal main loop to exit."""
+    global _quit_requested
+    _quit_requested = True
+    logger.info("Quit requested")
     engine = get_engine()
     engine.stop()
-    # Unhook all hotkeys before exit
-    keyboard.unhook_all()
-    sys.exit(0)
 
 
 def main():
@@ -112,12 +115,17 @@ def main():
     logger.info(f"Current speed: {engine.rate} wpm")
 
     try:
-        # Keep running until quit hotkey or Ctrl+C
-        keyboard.wait()
+        # Poll for quit flag (keyboard.wait() blocks forever)
+        while not _quit_requested:
+            time.sleep(0.1)
     except KeyboardInterrupt:
         logger.info("Ctrl+C - exiting")
-        engine.stop()
-        sys.exit(0)
+
+    # Clean shutdown
+    engine.stop()
+    keyboard.unhook_all()
+    logger.info("Herald stopped")
+    sys.exit(0)
 
 
 if __name__ == "__main__":
