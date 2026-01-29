@@ -15,8 +15,8 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 **Decisions made:**
 - TTS engine: **pyttsx3** for MVP (simple, offline) — can swap to edge-tts later for better voices
 - Hotkey library: **keyboard** (`keyboard.add_hotkey()`)
-- Default hotkey: **Alt+S** (speak)
-- Stop hotkey: **Escape**
+- Hotkeys: **Alt+S** speak, **Alt+[/]** speed, **Escape** stop, **Alt+Q** quit
+- Logging: **loguru** → `logs/herald.log` (10MB rotation, 7 day retention)
 
 ## Tech Stack
 
@@ -37,6 +37,8 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 | src/tts_engine.py | TTS abstraction layer |
 | src/text_grab.py | Clipboard/selection handling |
 | src/config.py | Settings and constants |
+| src/utils.py | Logging setup |
+| logs/ | Application logs (herald.log) |
 | .claude/docs/ | Research and design docs |
 
 ## Essential Commands
@@ -71,8 +73,9 @@ python src/main.py   # requires admin terminal
 
 ## Next Steps (Phase 2)
 
-- [ ] Speed up/slow down hotkeys (Alt+[ / Alt+])
-- [ ] File logging (loguru, like whisper-typer)
+- [x] Speed up/slow down hotkeys (Alt+[ / Alt+]) with audio feedback
+- [x] File logging (loguru → logs/herald.log)
+- [x] Quit hotkey (Alt+Q)
 - [ ] Module self-tests (`if __name__ == "__main__":`)
 - [ ] System tray icon with controls
 - [ ] Pause/resume functionality

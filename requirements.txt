@@ -10,6 +10,9 @@ keyboard>=0.13.5
 # Clipboard access
 pyperclip>=1.8.2
 
+# Logging (rotating file logs for debugging)
+loguru>=0.7.2
+
 # System tray (Phase 2)
 # pystray>=0.19.4
 # Pillow>=10.0.0  # Required by pystray for icons

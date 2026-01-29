@@ -65,9 +65,11 @@ if not exist "venv\Lib\site-packages\pyttsx3" (
 )
 
 :: Ready to run
-echo   Speak hotkey: Alt + S
-echo   Stop hotkey:  Escape
-echo   Close this window to stop the application
+echo   Alt+S   Speak clipboard
+echo   Alt+]   Speed up
+echo   Alt+[   Slow down
+echo   Escape  Stop speaking
+echo   Alt+Q   Quit
 echo ========================================
 echo.
 

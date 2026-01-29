@@ -8,18 +8,26 @@ Usage:
     python main.py
 
 Hotkeys:
-    Alt+S - Read clipboard text (speak)
-    Escape - Stop reading
+    Alt+S   - Speak clipboard text
+    Alt+]   - Speed up
+    Alt+[   - Slow down
+    Escape  - Stop speaking
+    Alt+Q   - Quit application
 
 Requires admin privileges on Windows for global hotkeys.
 """
 
 import sys
 import keyboard
+from loguru import logger
 
-from config import DEFAULT_HOTKEY, STOP_HOTKEY
+from config import (
+    DEFAULT_HOTKEY, STOP_HOTKEY, SPEED_UP_HOTKEY,
+    SPEED_DOWN_HOTKEY, QUIT_HOTKEY, RATE_STEP, MIN_RATE, MAX_RATE
+)
 from tts_engine import get_engine
 from text_grab import get_text_to_speak
+from utils import setup_logging
 
 
 def on_speak_hotkey():
@@ -27,37 +35,87 @@ def on_speak_hotkey():
     text = get_text_to_speak()
 
     if text:
-        print(f"Speaking: {text[:50]}..." if len(text) > 50 else f"Speaking: {text}")
+        preview = f"{text[:50]}..." if len(text) > 50 else text
+        logger.info(f"Speaking: {preview}")
         engine = get_engine()
         engine.speak(text)
     else:
-        print("No text to speak (clipboard empty)")
+        logger.warning("No text to speak (clipboard empty)")
 
 
 def on_stop_hotkey():
     """Called when the stop hotkey is pressed."""
     engine = get_engine()
     if engine.is_speaking:
-        print("Stopping...")
+        logger.info("Stopped")
         engine.stop()
+
+
+def on_speed_up():
+    """Increase speech rate."""
+    engine = get_engine()
+    old_rate = engine.rate
+    engine.rate = old_rate + RATE_STEP
+
+    if engine.rate >= MAX_RATE:
+        logger.info(f"Speed: {engine.rate} wpm (maximum)")
+        engine.speak("Maximum speed")
+    else:
+        logger.info(f"Speed: {engine.rate} wpm (faster)")
+        engine.speak("Faster")
+
+
+def on_speed_down():
+    """Decrease speech rate."""
+    engine = get_engine()
+    old_rate = engine.rate
+    engine.rate = old_rate - RATE_STEP
+
+    if engine.rate <= MIN_RATE:
+        logger.info(f"Speed: {engine.rate} wpm (minimum)")
+        engine.speak("Minimum speed")
+    else:
+        logger.info(f"Speed: {engine.rate} wpm (slower)")
+        engine.speak("Slower")
+
+
+def on_quit():
+    """Exit the application."""
+    logger.info("Quit hotkey pressed - exiting")
+    engine = get_engine()
+    engine.stop()
+    # Unhook all hotkeys before exit
+    keyboard.unhook_all()
+    sys.exit(0)
 
 
 def main():
     """Main entry point."""
-    # Minimal output - launcher batch file shows the banner
-    print("Ready. Copy text to clipboard, press Alt+S to speak.")
+    setup_logging()
+
+    logger.info("Herald started")
+    logger.info(f"  Speak:     {DEFAULT_HOTKEY}")
+    logger.info(f"  Speed up:  {SPEED_UP_HOTKEY}")
+    logger.info(f"  Slow down: {SPEED_DOWN_HOTKEY}")
+    logger.info(f"  Stop:      {STOP_HOTKEY}")
+    logger.info(f"  Quit:      {QUIT_HOTKEY}")
     print()
 
     # Register hotkeys
     keyboard.add_hotkey(DEFAULT_HOTKEY, on_speak_hotkey, suppress=True)
     keyboard.add_hotkey(STOP_HOTKEY, on_stop_hotkey, suppress=False)
+    keyboard.add_hotkey(SPEED_UP_HOTKEY, on_speed_up, suppress=True)
+    keyboard.add_hotkey(SPEED_DOWN_HOTKEY, on_speed_down, suppress=True)
+    keyboard.add_hotkey(QUIT_HOTKEY, on_quit, suppress=True)
+
+    engine = get_engine()
+    logger.info(f"Current speed: {engine.rate} wpm")
 
     try:
-        # Keep running until Ctrl+C
+        # Keep running until quit hotkey or Ctrl+C
         keyboard.wait()
     except KeyboardInterrupt:
-        print("\nExiting Herald...")
-        engine = get_engine()
+        logger.info("Ctrl+C - exiting")
         engine.stop()
         sys.exit(0)
 
