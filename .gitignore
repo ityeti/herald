@@ -23,6 +23,9 @@ build/
 *.swp
 *.swo
 
+# Claude Code local settings (keep .claude/docs/)
+.claude/settings.local.json
+
 # Debug mode file
 .debug
 
