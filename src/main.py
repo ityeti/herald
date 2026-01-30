@@ -31,7 +31,8 @@ from config import (
     STOP_HOTKEY, SPEED_UP_HOTKEY, SPEED_DOWN_HOTKEY, QUIT_HOTKEY,
     NEXT_LINE_HOTKEY, PREV_LINE_HOTKEY,
     RATE_STEP, MIN_RATE, MAX_RATE, load_settings, set_setting,
-    DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY, DEFAULT_LINE_DELAY
+    DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY, DEFAULT_LINE_DELAY,
+    DEFAULT_READ_MODE, DEFAULT_LOG_PREVIEW
 )
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_text_to_speak
@@ -50,6 +51,8 @@ _line_queue: list[str] = []
 _current_line_index = 0
 _was_speaking = False  # Track state for auto-advance
 _line_delay = DEFAULT_LINE_DELAY  # Delay in ms between lines
+_read_mode = DEFAULT_READ_MODE  # "lines" or "continuous"
+_log_preview = DEFAULT_LOG_PREVIEW  # Show text in console/logs
 
 
 def on_speak_hotkey():
@@ -58,22 +61,50 @@ def on_speak_hotkey():
 
     text = get_text_to_speak()
 
-    if text:
-        # Split text into lines, filtering out empty lines
+    if not text:
+        logger.warning("No text to speak (clipboard empty)")
+        return
+
+    if _read_mode == "continuous":
+        # Original behavior: speak all text as one block
+        _speak_continuous(text)
+    else:
+        # Line-by-line mode (default)
         lines = [line.strip() for line in text.split('\n') if line.strip()]
 
         if not lines:
             logger.warning("No text to speak (only whitespace)")
             return
 
-        # Store the queue and start from the beginning
         _line_queue = lines
         _current_line_index = 0
-
-        # Speak the first line
         _speak_current_line()
+
+
+def _speak_continuous(text: str):
+    """Speak all text as one continuous block (original behavior)."""
+    engine = get_engine()
+
+    if _log_preview:
+        preview = f"{text[:50]}..." if len(text) > 50 else text
+        if isinstance(engine, EdgeTTSEngine):
+            logger.info(f"Generating: {preview}")
+        else:
+            logger.info(f"Speaking: {preview}")
     else:
-        logger.warning("No text to speak (clipboard empty)")
+        if isinstance(engine, EdgeTTSEngine):
+            logger.info("Generating audio...")
+        else:
+            logger.info("Speaking...")
+
+    if isinstance(engine, EdgeTTSEngine):
+        if _tray_app:
+            _tray_app.set_generating(True)
+    else:
+        if _tray_app:
+            _tray_app.set_speaking(True)
+
+    engine.speak(text)
 
 
 def _speak_current_line():
@@ -88,13 +119,22 @@ def _speak_current_line():
     line = _line_queue[_current_line_index]
     total_lines = len(_line_queue)
     line_num = _current_line_index + 1
-
-    # Show line number and preview
-    preview = f"{line[:40]}..." if len(line) > 40 else line
     engine = get_engine()
 
+    # Log with or without text preview based on privacy setting
+    if _log_preview:
+        preview = f"{line[:40]}..." if len(line) > 40 else line
+        if isinstance(engine, EdgeTTSEngine):
+            logger.info(f"[{line_num}/{total_lines}] Generating: {preview}")
+        else:
+            logger.info(f"[{line_num}/{total_lines}] Speaking: {preview}")
+    else:
+        if isinstance(engine, EdgeTTSEngine):
+            logger.info(f"[{line_num}/{total_lines}] Generating...")
+        else:
+            logger.info(f"[{line_num}/{total_lines}] Speaking...")
+
     if isinstance(engine, EdgeTTSEngine):
-        logger.info(f"[{line_num}/{total_lines}] Generating: {preview}")
         if _tray_app:
             _tray_app.set_generating(True)
 
@@ -103,7 +143,6 @@ def _speak_current_line():
             next_line = _line_queue[_current_line_index + 1]
             engine.prefetch(next_line)
     else:
-        logger.info(f"[{line_num}/{total_lines}] Speaking: {preview}")
         if _tray_app:
             _tray_app.set_speaking(True)
 
@@ -287,6 +326,32 @@ def on_line_delay_change(delay: int):
         engine.speak(f"Line delay set to {delay} milliseconds")
 
 
+def on_read_mode_change(mode: str):
+    """Handle read mode change from tray menu."""
+    global _read_mode
+    logger.info(f"Changing read mode to: {mode}")
+    _read_mode = mode
+    set_setting("read_mode", mode)
+    engine = get_engine()
+    if mode == "continuous":
+        engine.speak("Continuous mode enabled")
+    else:
+        engine.speak("Line by line mode enabled")
+
+
+def on_log_preview_change(enabled: bool):
+    """Handle log preview toggle from tray menu."""
+    global _log_preview
+    logger.info(f"Log preview: {'enabled' if enabled else 'disabled'}")
+    _log_preview = enabled
+    set_setting("log_preview", enabled)
+    engine = get_engine()
+    if enabled:
+        engine.speak("Text preview enabled")
+    else:
+        engine.speak("Text preview disabled")
+
+
 def on_console_toggle(visible: bool):
     """Handle console visibility toggle from tray menu."""
     global _console_visible
@@ -398,7 +463,8 @@ def update_tray_state():
 
 def main():
     """Main entry point."""
-    global _tray_app, _current_speak_hotkey, _current_pause_hotkey, _line_delay
+    global _tray_app, _current_speak_hotkey, _current_pause_hotkey
+    global _line_delay, _read_mode, _log_preview
 
     setup_logging()
 
@@ -407,6 +473,8 @@ def main():
     _current_speak_hotkey = settings.get("hotkey_speak", DEFAULT_SPEAK_HOTKEY)
     _current_pause_hotkey = settings.get("hotkey_pause", DEFAULT_PAUSE_HOTKEY)
     _line_delay = settings.get("line_delay", DEFAULT_LINE_DELAY)
+    _read_mode = settings.get("read_mode", DEFAULT_READ_MODE)
+    _log_preview = settings.get("log_preview", DEFAULT_LOG_PREVIEW)
 
     logger.info("Herald started")
     logger.info(f"  Speak:      {_current_speak_hotkey}")
@@ -428,6 +496,8 @@ def main():
         on_voice_change=on_voice_change,
         on_speed_change=on_speed_change,
         on_line_delay_change=on_line_delay_change,
+        on_read_mode_change=on_read_mode_change,
+        on_log_preview_change=on_log_preview_change,
         on_pause_toggle=on_pause_resume,
         on_console_toggle=on_console_toggle,
         on_speak_hotkey_change=on_speak_hotkey_change,
@@ -436,6 +506,8 @@ def main():
         current_voice=engine.voice_name,
         current_speed=engine.rate,
         current_line_delay=_line_delay,
+        current_read_mode=_read_mode,
+        current_log_preview=_log_preview,
         current_speak_hotkey=_current_speak_hotkey,
         current_pause_hotkey=_current_pause_hotkey,
         console_visible=True,

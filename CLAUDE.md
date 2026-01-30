@@ -63,7 +63,9 @@ Saved to `config/settings.json`:
   "rate": 500,
   "hotkey_speak": "alt+s",
   "hotkey_pause": "alt+p",
-  "line_delay": 0
+  "line_delay": 0,
+  "read_mode": "lines",
+  "log_preview": true
 }
 ```
 

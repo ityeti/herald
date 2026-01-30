@@ -106,10 +106,12 @@ Right-click the tray icon to access:
 - **Voice (Online)**: Aria, Jenny, Guy, Christopher (neural voices, requires internet)
 - **Voice (Offline)**: Zira, David (Windows SAPI voices, no internet needed)
 - **Speed**: Preset speeds (150-900 wpm online, up to 1500 wpm offline)
-- **Line Delay**: Add a pause between lines (0-2000ms)
+- **Read Mode**: Line by Line (default) or Continuous (reads all text as one block)
+- **Line Delay**: Add a pause between lines (0-2000ms, only applies in Line by Line mode)
 - **Pause/Resume**: Toggle when speaking
 - **Hotkeys**: Configure speak and pause hotkeys
 - **Console**: Show or hide the console window
+- **Show Text Preview**: Toggle whether text content appears in console/logs (privacy option)
 - **Quit**: Exit the application
 
 ## Configuration
@@ -123,7 +125,9 @@ Settings are saved to `config/settings.json`:
   "rate": 900,
   "hotkey_speak": "alt+s",
   "hotkey_pause": "alt+p",
-  "line_delay": 0
+  "line_delay": 0,
+  "read_mode": "lines",
+  "log_preview": true
 }
 ```
 
@@ -135,6 +139,8 @@ Settings are saved to `config/settings.json`:
 | hotkey_speak | alt+s, ctrl+shift+s, f9, alt+r, ctrl+` | Speak hotkey |
 | hotkey_pause | alt+p, ctrl+shift+p, f10 | Pause hotkey |
 | line_delay | 0-2000 | Milliseconds to pause between lines |
+| read_mode | lines, continuous | Line by line or read all text at once |
+| log_preview | true, false | Show text content in console/logs |
 
 ## Available Voices
 

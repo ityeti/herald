@@ -33,6 +33,10 @@ RATE_STEP = 25       # Amount to change per speed hotkey press
 
 # Line navigation
 DEFAULT_LINE_DELAY = 0  # Milliseconds between lines (0 = no delay)
+DEFAULT_READ_MODE = "lines"  # "lines" or "continuous"
+
+# Privacy
+DEFAULT_LOG_PREVIEW = True  # Show text preview in console/logs
 
 # Voice defaults
 # Edge voices: aria, guy, jenny, christopher (online, neural)
@@ -56,6 +60,8 @@ DEFAULT_SETTINGS = {
     "hotkey_speak": DEFAULT_SPEAK_HOTKEY,
     "hotkey_pause": DEFAULT_PAUSE_HOTKEY,
     "line_delay": DEFAULT_LINE_DELAY,
+    "read_mode": DEFAULT_READ_MODE,
+    "log_preview": DEFAULT_LOG_PREVIEW,
 }
 
 
