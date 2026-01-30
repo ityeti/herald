@@ -9,7 +9,7 @@ A text-to-speech utility for Windows that reads clipboard text aloud using high-
 - **Global Hotkeys**: Works in any application
 - **System Tray**: Unobtrusive tray icon with menu controls
 - **Pause/Resume**: Pause mid-speech and resume later
-- **Adjustable Speed**: 50-600 words per minute
+- **Adjustable Speed**: 100-1200 words per minute
 - **Settings Persistence**: Remembers your voice and speed preferences
 
 ## Requirements
@@ -82,7 +82,7 @@ Settings are saved to `config/settings.json`:
 |---------|---------|-------------|
 | engine | edge, pyttsx3 | TTS engine (auto-selected based on voice) |
 | voice | aria, jenny, guy, christopher, zira, david | Voice name |
-| rate | 50-600 | Words per minute |
+| rate | 100-1200 | Words per minute |
 
 ## Available Voices
 

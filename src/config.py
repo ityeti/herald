@@ -23,8 +23,8 @@ QUIT_HOTKEY = "alt+q"         # Exit application
 
 # TTS defaults
 DEFAULT_RATE = 500   # Words per minute
-MIN_RATE = 50
-MAX_RATE = 600
+MIN_RATE = 100
+MAX_RATE = 1200
 RATE_STEP = 25       # Amount to change per speed hotkey press
 
 # Voice defaults

@@ -29,10 +29,15 @@ class TrayApp:
 
     # Speed presets
     SPEED_PRESETS = [
-        (200, "Slow (200 wpm)"),
-        (350, "Normal (350 wpm)"),
-        (500, "Fast (500 wpm)"),
-        (600, "Maximum (600 wpm)"),
+        (100, "100 wpm"),
+        (200, "200 wpm"),
+        (300, "300 wpm"),
+        (400, "400 wpm"),
+        (500, "500 wpm"),
+        (600, "600 wpm"),
+        (800, "800 wpm"),
+        (1000, "1000 wpm"),
+        (1200, "1200 wpm"),
     ]
 
     def __init__(
