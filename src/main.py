@@ -23,6 +23,8 @@ Requires admin privileges on Windows for global hotkeys.
 import sys
 import time
 import ctypes
+import os
+import subprocess
 import keyboard
 from loguru import logger
 from typing import Optional
@@ -38,6 +40,29 @@ from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_text_to_speak
 from tray_app import TrayApp
 from utils import setup_logging
+
+
+def ensure_single_instance():
+    """Ensure only one instance of Herald is running.
+
+    Returns True if this is the only instance, False if another exists.
+    """
+    MUTEX_NAME = "Global\\HeraldSingleInstance"
+
+    # Try to create a named mutex
+    kernel32 = ctypes.windll.kernel32
+    mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
+    last_error = kernel32.GetLastError()
+
+    # ERROR_ALREADY_EXISTS = 183 means another instance has the mutex
+    if last_error == 183:
+        print("Herald is already running. Check your system tray.")
+        print("To start a new instance, close the existing one first.")
+        input("\nPress Enter to exit...")
+        sys.exit(0)
+
+    return True
+
 
 # Global state
 _quit_requested = False
@@ -466,6 +491,9 @@ def main():
     global _tray_app, _current_speak_hotkey, _current_pause_hotkey
     global _line_delay, _read_mode, _log_preview
 
+    # Ensure only one instance runs
+    ensure_single_instance()
+
     setup_logging()
 
     # Load settings
@@ -485,6 +513,8 @@ def main():
     logger.info(f"  Prev line:  {PREV_LINE_HOTKEY}")
     logger.info(f"  Stop:       {STOP_HOTKEY}")
     logger.info(f"  Quit:       {QUIT_HOTKEY}")
+    print()
+    print("Tip: Right-click the tray icon to hide this console or change settings.")
     print()
 
     # Initialize engine
