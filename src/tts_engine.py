@@ -246,12 +246,23 @@ class EdgeTTSEngine(BaseTTSEngine):
 
     def _rate_to_edge_modifier(self) -> str:
         """Convert our rate (wpm) to edge-tts rate modifier."""
-        # Baseline: 200 wpm = 0%
-        # Our range: 50-600 wpm
-        # Edge range: roughly -50% to +100%
-        baseline = 200
-        diff = self._rate - baseline
-        percent = int((diff / baseline) * 100)
+        # Edge-tts rate modifier has practical limits (about -50% to +200%)
+        # Map our wpm range to edge-tts percentage:
+        #   100 wpm  -> -50%
+        #   300 wpm  ->   0% (baseline)
+        #   600 wpm  -> +100%
+        #   1200 wpm -> +200% (capped)
+
+        # Linear interpolation from wpm to percentage
+        # At 300 wpm = 0%, every 300 wpm = 100% change
+        baseline_wpm = 300
+        percent = int((self._rate - baseline_wpm) / 3)
+
+        # Clamp to edge-tts practical limits
+        percent = max(-50, min(200, percent))
+
+        logger.debug(f"Rate {self._rate} wpm -> {percent}%")
+
         if percent >= 0:
             return f"+{percent}%"
         return f"{percent}%"
