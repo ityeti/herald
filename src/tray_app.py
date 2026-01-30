@@ -58,10 +58,23 @@ class TrayApp:
         ("f10", "F10"),
     ]
 
+    # Line delay presets (milliseconds)
+    DELAY_PRESETS = [
+        (0, "No delay"),
+        (100, "100ms"),
+        (250, "250ms"),
+        (500, "500ms"),
+        (750, "750ms"),
+        (1000, "1 second"),
+        (1500, "1.5 seconds"),
+        (2000, "2 seconds"),
+    ]
+
     def __init__(
         self,
         on_voice_change: Optional[Callable[[str], None]] = None,
         on_speed_change: Optional[Callable[[int], None]] = None,
+        on_line_delay_change: Optional[Callable[[int], None]] = None,
         on_pause_toggle: Optional[Callable[[], None]] = None,
         on_console_toggle: Optional[Callable[[bool], None]] = None,
         on_speak_hotkey_change: Optional[Callable[[str], None]] = None,
@@ -69,12 +82,14 @@ class TrayApp:
         on_quit: Optional[Callable[[], None]] = None,
         current_voice: str = "aria",
         current_speed: int = 500,
+        current_line_delay: int = 0,
         current_speak_hotkey: str = "alt+s",
         current_pause_hotkey: str = "alt+p",
         console_visible: bool = True,
     ):
         self.on_voice_change = on_voice_change
         self.on_speed_change = on_speed_change
+        self.on_line_delay_change = on_line_delay_change
         self.on_pause_toggle = on_pause_toggle
         self.on_console_toggle = on_console_toggle
         self.on_speak_hotkey_change = on_speak_hotkey_change
@@ -83,6 +98,7 @@ class TrayApp:
 
         self.current_voice = current_voice
         self.current_speed = current_speed
+        self.current_line_delay = current_line_delay
         self.current_speak_hotkey = current_speak_hotkey
         self.current_pause_hotkey = current_pause_hotkey
         self.console_visible = console_visible
@@ -176,6 +192,17 @@ class TrayApp:
                 )
             )
 
+        # Line delay submenu
+        delay_items = []
+        for delay, label in self.DELAY_PRESETS:
+            delay_items.append(
+                pystray.MenuItem(
+                    label,
+                    self._make_delay_callback(delay),
+                    checked=lambda item, d=delay: self.current_line_delay == d
+                )
+            )
+
         # Console submenu
         console_items = [
             pystray.MenuItem(
@@ -225,6 +252,10 @@ class TrayApp:
                 "Speed",
                 pystray.Menu(*speed_items)
             ),
+            pystray.MenuItem(
+                "Line Delay",
+                pystray.Menu(*delay_items)
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Pause" if not self.is_paused else "Resume",
@@ -272,6 +303,17 @@ class TrayApp:
                 self.current_speed = speed
                 if self.on_speed_change:
                     self.on_speed_change(speed)
+                self._refresh_menu()
+        return callback
+
+    def _make_delay_callback(self, delay: int):
+        """Create callback for line delay selection."""
+        def callback():
+            if delay != self.current_line_delay:
+                logger.info(f"Line delay change: {delay}ms")
+                self.current_line_delay = delay
+                if self.on_line_delay_change:
+                    self.on_line_delay_change(delay)
                 self._refresh_menu()
         return callback
 
@@ -364,6 +406,11 @@ class TrayApp:
     def set_speed(self, speed: int):
         """Update current speed (for menu checkmark)."""
         self.current_speed = speed
+        self._refresh_menu()
+
+    def set_line_delay(self, delay: int):
+        """Update current line delay (for menu checkmark)."""
+        self.current_line_delay = delay
         self._refresh_menu()
 
     def set_speak_hotkey(self, hotkey: str):

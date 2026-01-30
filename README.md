@@ -85,10 +85,19 @@ Double-click **`Autostart_Disable.bat`** (will prompt for admin rights).
 |--------|--------|
 | Alt+S | Speak clipboard text |
 | Alt+P | Pause/resume |
+| Alt+N | Skip to next line |
+| Alt+B | Go back to previous line |
 | Alt+] | Speed up |
 | Alt+[ | Slow down |
 | Escape | Stop speaking |
 | Alt+Q | Quit application |
+
+### Line Navigation
+
+When you press Alt+S, text is split by newlines and read one line at a time. Use **Alt+N** to skip ahead or **Alt+B** to go back. This is useful for:
+- Bouncing through code blocks
+- Skipping sections you've already heard
+- Replaying a line you missed
 
 ## System Tray Menu
 
@@ -97,6 +106,7 @@ Right-click the tray icon to access:
 - **Voice (Online)**: Aria, Jenny, Guy, Christopher (neural voices, requires internet)
 - **Voice (Offline)**: Zira, David (Windows SAPI voices, no internet needed)
 - **Speed**: Preset speeds (150-900 wpm online, up to 1500 wpm offline)
+- **Line Delay**: Add a pause between lines (0-2000ms)
 - **Pause/Resume**: Toggle when speaking
 - **Hotkeys**: Configure speak and pause hotkeys
 - **Console**: Show or hide the console window
@@ -112,7 +122,8 @@ Settings are saved to `config/settings.json`:
   "voice": "aria",
   "rate": 900,
   "hotkey_speak": "alt+s",
-  "hotkey_pause": "alt+p"
+  "hotkey_pause": "alt+p",
+  "line_delay": 0
 }
 ```
 
@@ -123,6 +134,7 @@ Settings are saved to `config/settings.json`:
 | rate | 150-1500 | Words per minute (online: 150-900, offline: up to 1500) |
 | hotkey_speak | alt+s, ctrl+shift+s, f9, alt+r, ctrl+` | Speak hotkey |
 | hotkey_pause | alt+p, ctrl+shift+p, f10 | Pause hotkey |
+| line_delay | 0-2000 | Milliseconds to pause between lines |
 
 ## Available Voices
 

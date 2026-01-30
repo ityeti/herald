@@ -46,6 +46,8 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 |--------|--------|--------------|
 | Alt+S | Speak clipboard | Yes (tray menu) |
 | Alt+P | Pause/resume | Yes (tray menu) |
+| Alt+N | Skip to next line | No |
+| Alt+B | Go back to previous line | No |
 | Alt+] | Speed up | No |
 | Alt+[ | Slow down | No |
 | Escape | Stop | No |

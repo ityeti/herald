@@ -21,6 +21,8 @@ DEFAULT_PAUSE_HOTKEY = "alt+p"
 STOP_HOTKEY = "escape"        # Stop speaking
 SPEED_UP_HOTKEY = "alt+]"     # Increase rate
 SPEED_DOWN_HOTKEY = "alt+["   # Decrease rate
+NEXT_LINE_HOTKEY = "alt+n"    # Skip to next line
+PREV_LINE_HOTKEY = "alt+b"    # Go back to previous line
 QUIT_HOTKEY = "alt+q"         # Exit application
 
 # TTS defaults
@@ -28,6 +30,9 @@ DEFAULT_RATE = 900   # Words per minute (max for online voices)
 MIN_RATE = 150       # Minimum effective for online voices
 MAX_RATE = 1500      # Maximum for offline voices
 RATE_STEP = 25       # Amount to change per speed hotkey press
+
+# Line navigation
+DEFAULT_LINE_DELAY = 0  # Milliseconds between lines (0 = no delay)
 
 # Voice defaults
 # Edge voices: aria, guy, jenny, christopher (online, neural)
@@ -50,6 +55,7 @@ DEFAULT_SETTINGS = {
     "rate": DEFAULT_RATE,
     "hotkey_speak": DEFAULT_SPEAK_HOTKEY,
     "hotkey_pause": DEFAULT_PAUSE_HOTKEY,
+    "line_delay": DEFAULT_LINE_DELAY,
 }
 
 

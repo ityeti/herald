@@ -229,10 +229,17 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._paused = False
         self._audio_file: Optional[str] = None
         self._thread: Optional[threading.Thread] = None
+        self._file_counter = 0  # Unique filename counter to avoid race conditions
+        self._stop_requested = False  # Signal to stop current generation
+
+        # Prefetch cache: text_hash -> audio_file_path
+        self._prefetch_cache: dict[str, str] = {}
+        self._prefetch_thread: Optional[threading.Thread] = None
 
         # Temp directory for audio files
         self._temp_dir = PROJECT_ROOT / "temp"
         self._temp_dir.mkdir(exist_ok=True)
+        self._cleanup_old_files()  # Clean up any leftover files from previous runs
 
         # Load saved settings
         settings = load_settings()
@@ -243,6 +250,22 @@ class EdgeTTSEngine(BaseTTSEngine):
         if voice not in self.VOICES:
             voice = "aria"
         self._voice_name = voice
+
+    def _cleanup_old_files(self):
+        """Clean up any leftover audio files from previous runs."""
+        try:
+            for f in self._temp_dir.glob("herald_*.mp3"):
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _get_text_hash(self, text: str) -> str:
+        """Get a short hash for text to use as cache key."""
+        import hashlib
+        return hashlib.md5(text.encode()).hexdigest()[:12]
 
     def _rate_to_edge_modifier(self) -> str:
         """Convert our rate (wpm) to edge-tts rate modifier."""
@@ -272,24 +295,47 @@ class EdgeTTSEngine(BaseTTSEngine):
             return
         self.stop()
 
+        text_hash = self._get_text_hash(text)
+
         def _speak_thread():
             self._generating = True
             self._paused = False
+            self._stop_requested = False
+            audio_file = None
+
             try:
-                # Generate audio file
-                import edge_tts
-                voice_id = self.VOICES.get(self._voice_name, "en-US-AriaNeural")
-                rate = self._rate_to_edge_modifier()
+                # Check if we have a prefetched file for this text
+                if text_hash in self._prefetch_cache:
+                    audio_file = self._prefetch_cache.pop(text_hash)
+                    if os.path.exists(audio_file):
+                        logger.debug(f"Using prefetched audio for: {text[:30]}...")
+                    else:
+                        audio_file = None  # File was cleaned up, regenerate
 
-                # Create temp file
-                self._audio_file = str(self._temp_dir / "herald_speech.mp3")
+                # Generate if not prefetched
+                if audio_file is None:
+                    import edge_tts
+                    voice_id = self.VOICES.get(self._voice_name, "en-US-AriaNeural")
+                    rate = self._rate_to_edge_modifier()
 
-                # Run async edge-tts (this is the slow part)
-                async def generate():
-                    communicate = edge_tts.Communicate(text, voice_id, rate=rate)
-                    await communicate.save(self._audio_file)
+                    # Create unique temp file
+                    self._file_counter += 1
+                    audio_file = str(self._temp_dir / f"herald_{self._file_counter}.mp3")
 
-                asyncio.run(generate())
+                    # Run async edge-tts (this is the slow part)
+                    async def generate():
+                        communicate = edge_tts.Communicate(text, voice_id, rate=rate)
+                        await communicate.save(audio_file)
+
+                    asyncio.run(generate())
+
+                # Check if stop was requested during generation
+                if self._stop_requested:
+                    self._cleanup_file(audio_file)
+                    return
+
+                # Store for cleanup
+                self._audio_file = audio_file
 
                 # Done generating, now playing
                 self._generating = False
@@ -315,12 +361,64 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._thread = threading.Thread(target=_speak_thread, daemon=True)
         self._thread.start()
 
+    def prefetch(self, text: str) -> None:
+        """Pre-generate audio for text (for next line prefetching)."""
+        if not text or not text.strip():
+            return
+
+        text_hash = self._get_text_hash(text)
+
+        # Don't prefetch if already cached
+        if text_hash in self._prefetch_cache:
+            return
+
+        def _prefetch_thread():
+            try:
+                import edge_tts
+                voice_id = self.VOICES.get(self._voice_name, "en-US-AriaNeural")
+                rate = self._rate_to_edge_modifier()
+
+                # Create unique temp file
+                self._file_counter += 1
+                audio_file = str(self._temp_dir / f"herald_prefetch_{self._file_counter}.mp3")
+
+                async def generate():
+                    communicate = edge_tts.Communicate(text, voice_id, rate=rate)
+                    await communicate.save(audio_file)
+
+                asyncio.run(generate())
+
+                # Store in cache
+                self._prefetch_cache[text_hash] = audio_file
+                logger.debug(f"Prefetched: {text[:30]}...")
+
+            except Exception as e:
+                logger.debug(f"Prefetch failed: {e}")
+
+        self._prefetch_thread = threading.Thread(target=_prefetch_thread, daemon=True)
+        self._prefetch_thread.start()
+
+    def clear_prefetch_cache(self):
+        """Clear all prefetched audio files."""
+        for audio_file in self._prefetch_cache.values():
+            self._cleanup_file(audio_file)
+        self._prefetch_cache.clear()
+
+    def _cleanup_file(self, filepath: str):
+        """Clean up a specific audio file."""
+        try:
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception:
+            pass
+
     def _cleanup_audio(self):
-        """Clean up temp audio file."""
+        """Clean up current audio file."""
         try:
             if self._audio_file and os.path.exists(self._audio_file):
                 self._pygame.mixer.music.unload()
                 os.remove(self._audio_file)
+                self._audio_file = None
         except Exception:
             pass
 
@@ -330,6 +428,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         return self._generating
 
     def stop(self) -> None:
+        self._stop_requested = True
         self._generating = False
         self._speaking = False
         self._paused = False

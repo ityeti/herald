@@ -8,11 +8,13 @@ Usage:
     python main.py
 
 Hotkeys:
-    Alt+S   - Speak clipboard text
+    Alt+S   - Speak clipboard text (splits into lines)
     Alt+P   - Pause/resume
+    Alt+N   - Skip to next line
+    Alt+B   - Go back to previous line
     Alt+]   - Speed up
     Alt+[   - Slow down
-    Escape  - Stop speaking
+    Escape  - Stop speaking (clears line queue)
     Alt+Q   - Quit application
 
 Requires admin privileges on Windows for global hotkeys.
@@ -27,8 +29,9 @@ from typing import Optional
 
 from config import (
     STOP_HOTKEY, SPEED_UP_HOTKEY, SPEED_DOWN_HOTKEY, QUIT_HOTKEY,
+    NEXT_LINE_HOTKEY, PREV_LINE_HOTKEY,
     RATE_STEP, MIN_RATE, MAX_RATE, load_settings, set_setting,
-    DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY
+    DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY, DEFAULT_LINE_DELAY
 )
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_text_to_speak
@@ -42,36 +45,130 @@ _console_visible = True
 _current_speak_hotkey = DEFAULT_SPEAK_HOTKEY
 _current_pause_hotkey = DEFAULT_PAUSE_HOTKEY
 
+# Line queue for skip functionality
+_line_queue: list[str] = []
+_current_line_index = 0
+_was_speaking = False  # Track state for auto-advance
+_line_delay = DEFAULT_LINE_DELAY  # Delay in ms between lines
+
 
 def on_speak_hotkey():
     """Called when the speak hotkey is pressed."""
+    global _line_queue, _current_line_index
+
     text = get_text_to_speak()
 
     if text:
-        preview = f"{text[:50]}..." if len(text) > 50 else text
-        engine = get_engine()
+        # Split text into lines, filtering out empty lines
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
 
-        # Show generating message for edge-tts (has network delay)
-        if isinstance(engine, EdgeTTSEngine):
-            logger.info(f"Generating: {preview}")
-            if _tray_app:
-                _tray_app.set_generating(True)
-        else:
-            logger.info(f"Speaking: {preview}")
-            if _tray_app:
-                _tray_app.set_speaking(True)
+        if not lines:
+            logger.warning("No text to speak (only whitespace)")
+            return
 
-        engine.speak(text)
+        # Store the queue and start from the beginning
+        _line_queue = lines
+        _current_line_index = 0
+
+        # Speak the first line
+        _speak_current_line()
     else:
         logger.warning("No text to speak (clipboard empty)")
+
+
+def _speak_current_line():
+    """Speak the current line from the queue."""
+    global _current_line_index
+
+    if not _line_queue or _current_line_index >= len(_line_queue):
+        logger.info("Finished all lines")
+        _clear_queue()
+        return
+
+    line = _line_queue[_current_line_index]
+    total_lines = len(_line_queue)
+    line_num = _current_line_index + 1
+
+    # Show line number and preview
+    preview = f"{line[:40]}..." if len(line) > 40 else line
+    engine = get_engine()
+
+    if isinstance(engine, EdgeTTSEngine):
+        logger.info(f"[{line_num}/{total_lines}] Generating: {preview}")
+        if _tray_app:
+            _tray_app.set_generating(True)
+
+        # Prefetch next line while this one plays
+        if _current_line_index + 1 < len(_line_queue):
+            next_line = _line_queue[_current_line_index + 1]
+            engine.prefetch(next_line)
+    else:
+        logger.info(f"[{line_num}/{total_lines}] Speaking: {preview}")
+        if _tray_app:
+            _tray_app.set_speaking(True)
+
+    engine.speak(line)
+
+
+def _clear_queue():
+    """Clear the line queue and prefetch cache."""
+    global _line_queue, _current_line_index
+    _line_queue = []
+    _current_line_index = 0
+
+    # Clear prefetch cache if using edge-tts
+    engine = get_engine()
+    if isinstance(engine, EdgeTTSEngine) and hasattr(engine, 'clear_prefetch_cache'):
+        engine.clear_prefetch_cache()
+
+
+def on_next_line():
+    """Skip to the next line in the queue."""
+    global _current_line_index
+
+    if not _line_queue:
+        return
+
+    engine = get_engine()
+    engine.stop()
+
+    if _current_line_index < len(_line_queue) - 1:
+        _current_line_index += 1
+        logger.info(f"Skipping to line {_current_line_index + 1}/{len(_line_queue)}")
+        _speak_current_line()
+    else:
+        logger.info("Already at last line")
+        _clear_queue()
+        if _tray_app:
+            _tray_app.set_speaking(False)
+
+
+def on_prev_line():
+    """Go back to the previous line in the queue."""
+    global _current_line_index
+
+    if not _line_queue:
+        return
+
+    engine = get_engine()
+    engine.stop()
+
+    if _current_line_index > 0:
+        _current_line_index -= 1
+        logger.info(f"Going back to line {_current_line_index + 1}/{len(_line_queue)}")
+        _speak_current_line()
+    else:
+        logger.info("Already at first line - restarting")
+        _speak_current_line()
 
 
 def on_stop_hotkey():
     """Called when the stop hotkey is pressed."""
     engine = get_engine()
-    if engine.is_speaking:
+    if engine.is_speaking or _line_queue:
         logger.info("Stopped")
         engine.stop()
+        _clear_queue()
         if _tray_app:
             _tray_app.set_speaking(False)
             _tray_app.set_paused(False)
@@ -177,6 +274,19 @@ def on_speed_change(speed: int):
     engine.speak(f"Speed set to {speed} words per minute")
 
 
+def on_line_delay_change(delay: int):
+    """Handle line delay change from tray menu."""
+    global _line_delay
+    logger.info(f"Changing line delay to: {delay}ms")
+    _line_delay = delay
+    set_setting("line_delay", delay)
+    engine = get_engine()
+    if delay == 0:
+        engine.speak("Line delay disabled")
+    else:
+        engine.speak(f"Line delay set to {delay} milliseconds")
+
+
 def on_console_toggle(visible: bool):
     """Handle console visibility toggle from tray menu."""
     global _console_visible
@@ -247,11 +357,31 @@ def on_pause_hotkey_change(new_hotkey: str):
 
 
 def update_tray_state():
-    """Update tray icon state based on engine state."""
-    if not _tray_app:
-        return
+    """Update tray icon state based on engine state and handle auto-advance."""
+    global _was_speaking, _current_line_index
 
     engine = get_engine()
+
+    # Check if we need to auto-advance to next line
+    is_active = engine.is_speaking or engine.is_paused or (hasattr(engine, 'is_generating') and engine.is_generating)
+
+    if _was_speaking and not is_active and _line_queue:
+        # Just finished a line, advance to next
+        _current_line_index += 1
+        if _current_line_index < len(_line_queue):
+            # Apply delay if configured
+            if _line_delay > 0:
+                time.sleep(_line_delay / 1000.0)
+            _speak_current_line()
+        else:
+            logger.info("Finished all lines")
+            _clear_queue()
+
+    _was_speaking = is_active
+
+    # Update tray icon
+    if not _tray_app:
+        return
 
     # Check generating first (edge-tts only)
     if hasattr(engine, 'is_generating') and engine.is_generating:
@@ -268,7 +398,7 @@ def update_tray_state():
 
 def main():
     """Main entry point."""
-    global _tray_app, _current_speak_hotkey, _current_pause_hotkey
+    global _tray_app, _current_speak_hotkey, _current_pause_hotkey, _line_delay
 
     setup_logging()
 
@@ -276,14 +406,17 @@ def main():
     settings = load_settings()
     _current_speak_hotkey = settings.get("hotkey_speak", DEFAULT_SPEAK_HOTKEY)
     _current_pause_hotkey = settings.get("hotkey_pause", DEFAULT_PAUSE_HOTKEY)
+    _line_delay = settings.get("line_delay", DEFAULT_LINE_DELAY)
 
     logger.info("Herald started")
-    logger.info(f"  Speak:     {_current_speak_hotkey}")
-    logger.info(f"  Pause:     {_current_pause_hotkey}")
-    logger.info(f"  Speed up:  {SPEED_UP_HOTKEY}")
-    logger.info(f"  Slow down: {SPEED_DOWN_HOTKEY}")
-    logger.info(f"  Stop:      {STOP_HOTKEY}")
-    logger.info(f"  Quit:      {QUIT_HOTKEY}")
+    logger.info(f"  Speak:      {_current_speak_hotkey}")
+    logger.info(f"  Pause:      {_current_pause_hotkey}")
+    logger.info(f"  Speed up:   {SPEED_UP_HOTKEY}")
+    logger.info(f"  Slow down:  {SPEED_DOWN_HOTKEY}")
+    logger.info(f"  Next line:  {NEXT_LINE_HOTKEY}")
+    logger.info(f"  Prev line:  {PREV_LINE_HOTKEY}")
+    logger.info(f"  Stop:       {STOP_HOTKEY}")
+    logger.info(f"  Quit:       {QUIT_HOTKEY}")
     print()
 
     # Initialize engine
@@ -294,6 +427,7 @@ def main():
     _tray_app = TrayApp(
         on_voice_change=on_voice_change,
         on_speed_change=on_speed_change,
+        on_line_delay_change=on_line_delay_change,
         on_pause_toggle=on_pause_resume,
         on_console_toggle=on_console_toggle,
         on_speak_hotkey_change=on_speak_hotkey_change,
@@ -301,6 +435,7 @@ def main():
         on_quit=on_quit,
         current_voice=engine.voice_name,
         current_speed=engine.rate,
+        current_line_delay=_line_delay,
         current_speak_hotkey=_current_speak_hotkey,
         current_pause_hotkey=_current_pause_hotkey,
         console_visible=True,
@@ -313,6 +448,8 @@ def main():
     keyboard.add_hotkey(STOP_HOTKEY, on_stop_hotkey, suppress=False)
     keyboard.add_hotkey(SPEED_UP_HOTKEY, on_speed_up, suppress=True)
     keyboard.add_hotkey(SPEED_DOWN_HOTKEY, on_speed_down, suppress=True)
+    keyboard.add_hotkey(NEXT_LINE_HOTKEY, on_next_line, suppress=True)
+    keyboard.add_hotkey(PREV_LINE_HOTKEY, on_prev_line, suppress=True)
     keyboard.add_hotkey(QUIT_HOTKEY, on_quit, suppress=True)
 
     try:
