@@ -1,6 +1,31 @@
 # Herald - Text-to-Speech
 
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+
 A text-to-speech utility for Windows that reads clipboard text aloud using high-quality neural voices. The inverse of [Whisper Voice-to-Text](https://github.com/ityeti/whisper-typer).
+
+## Why Herald?
+
+**Accessibility** - Have articles, emails, and documents read aloud while you multitask or rest your eyes.
+
+**Productivity** - Listen to written content while driving, exercising, or doing other tasks.
+
+**Learning** - Improve comprehension by engaging both visual and auditory learning styles.
+
+**Hands-Free** - Works globally across any Windows application with a simple hotkey.
+
+### vs. Windows Built-in TTS
+
+| Feature | Herald | Windows TTS |
+|---------|--------|-------------|
+| Voice Quality | Neural voices (Aria, Jenny, Guy, Christopher) | Basic SAPI voices |
+| Speed Range | 150-1500 wpm | Limited range |
+| Pause/Resume | ✅ Yes | ❌ No |
+| Hotkey Control | ✅ Global hotkeys | ❌ Manual trigger |
+| System Tray | ✅ Quick access | ❌ No controls |
+| Offline Support | ✅ Fallback voices | N/A |
 
 ## Features
 
