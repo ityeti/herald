@@ -136,11 +136,16 @@ def on_quit():
 # Tray app callbacks
 def on_voice_change(voice: str):
     """Handle voice change from tray menu."""
+    from config import set_setting
+
     logger.info(f"Changing voice to: {voice}")
 
     # Stop any current speech first
     current_engine = get_engine()
     current_engine.stop()
+
+    # Save voice to settings FIRST (before engine switch loads settings)
+    set_setting("voice", voice)
 
     # Determine which engine to use and switch if needed
     if voice in EdgeTTSEngine.VOICES:
@@ -160,7 +165,6 @@ def on_voice_change(voice: str):
         return
 
     # Announce the change
-    logger.info(f"Generating audio for {voice}...")
     engine = get_engine()
     engine.speak(f"Voice changed to {voice}")
 
