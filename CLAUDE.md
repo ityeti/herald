@@ -80,8 +80,8 @@ Saved to `config/settings.json`:
 
 ## Next Steps (for public release)
 
-- [ ] Review code for sensitive info
-- [ ] Test fresh install on clean system
+- [x] Review code for sensitive info
+- [x] Test fresh install on clean system
 - [ ] Make repo public
 
 ## Someday/Maybe
@@ -89,6 +89,7 @@ Saved to `config/settings.json`:
 - OCR for images/screenshots
 - Double-click text to read selection
 - More hotkey options (speed, voice switching)
+- Show "(offline only)" suffix on 100, 1000, 1200 wpm speed presets in tray menu
 
 ## Related
 
