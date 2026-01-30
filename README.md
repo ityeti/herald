@@ -42,7 +42,17 @@ Double-click **`Launch_Herald.bat`** - it will:
 2. Press **Alt+S** to hear it read aloud
 3. Press **Alt+P** to pause/resume
 4. Press **Escape** to stop
-5. Right-click the tray icon to change voice or speed
+5. Right-click the tray icon to change voice, speed, or hotkeys
+
+### 4. Auto-Start with Windows (Optional)
+
+To launch automatically when you log in:
+
+Double-click **`Autostart_Enable.bat`** (will prompt for admin rights).
+
+To remove auto-start:
+
+Double-click **`Autostart_Disable.bat`** (will prompt for admin rights).
 
 ## Hotkeys
 
@@ -61,8 +71,9 @@ Right-click the tray icon to access:
 
 - **Voice (Online)**: Aria, Jenny, Guy, Christopher (neural voices, requires internet)
 - **Voice (Offline)**: Zira, David (Windows SAPI voices, no internet needed)
-- **Speed**: Preset speeds (200, 350, 500, 600 wpm)
+- **Speed**: Preset speeds (100-1200 wpm)
 - **Pause/Resume**: Toggle when speaking
+- **Hotkeys**: Configure speak and pause hotkeys
 - **Console**: Show or hide the console window
 - **Quit**: Exit the application
 
@@ -74,7 +85,9 @@ Settings are saved to `config/settings.json`:
 {
   "engine": "edge",
   "voice": "aria",
-  "rate": 500
+  "rate": 500,
+  "hotkey_speak": "alt+s",
+  "hotkey_pause": "alt+p"
 }
 ```
 
@@ -83,6 +96,8 @@ Settings are saved to `config/settings.json`:
 | engine | edge, pyttsx3 | TTS engine (auto-selected based on voice) |
 | voice | aria, jenny, guy, christopher, zira, david | Voice name |
 | rate | 100-1200 | Words per minute |
+| hotkey_speak | alt+s, ctrl+shift+s, f9, alt+r, ctrl+` | Speak hotkey |
+| hotkey_pause | alt+p, ctrl+shift+p, f10 | Pause hotkey |
 
 ## Available Voices
 

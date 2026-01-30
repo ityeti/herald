@@ -1,5 +1,7 @@
 {
   "engine": "edge",
   "voice": "aria",
-  "rate": 500
+  "rate": 500,
+  "hotkey_speak": "alt+s",
+  "hotkey_pause": "alt+p"
 }

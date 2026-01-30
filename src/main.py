@@ -26,9 +26,9 @@ from loguru import logger
 from typing import Optional
 
 from config import (
-    DEFAULT_HOTKEY, STOP_HOTKEY, PAUSE_HOTKEY, SPEED_UP_HOTKEY,
-    SPEED_DOWN_HOTKEY, QUIT_HOTKEY, RATE_STEP, MIN_RATE, MAX_RATE,
-    load_settings
+    STOP_HOTKEY, SPEED_UP_HOTKEY, SPEED_DOWN_HOTKEY, QUIT_HOTKEY,
+    RATE_STEP, MIN_RATE, MAX_RATE, load_settings, set_setting,
+    DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY
 )
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_text_to_speak
@@ -39,6 +39,8 @@ from utils import setup_logging
 _quit_requested = False
 _tray_app: Optional[TrayApp] = None
 _console_visible = True
+_current_speak_hotkey = DEFAULT_SPEAK_HOTKEY
+_current_pause_hotkey = DEFAULT_PAUSE_HOTKEY
 
 
 def on_speak_hotkey():
@@ -136,8 +138,6 @@ def on_quit():
 # Tray app callbacks
 def on_voice_change(voice: str):
     """Handle voice change from tray menu."""
-    from config import set_setting
-
     logger.info(f"Changing voice to: {voice}")
 
     # Stop any current speech first
@@ -196,6 +196,56 @@ def on_console_toggle(visible: bool):
             logger.info("Console hidden")
 
 
+def on_speak_hotkey_change(new_hotkey: str):
+    """Handle speak hotkey change from tray menu."""
+    global _current_speak_hotkey
+
+    old_hotkey = _current_speak_hotkey
+    logger.info(f"Changing speak hotkey: {old_hotkey} -> {new_hotkey}")
+
+    # Unregister old hotkey
+    try:
+        keyboard.remove_hotkey(old_hotkey)
+    except (KeyError, ValueError):
+        pass  # Hotkey wasn't registered
+
+    # Register new hotkey
+    keyboard.add_hotkey(new_hotkey, on_speak_hotkey, suppress=True)
+    _current_speak_hotkey = new_hotkey
+
+    # Save to settings
+    set_setting("hotkey_speak", new_hotkey)
+
+    # Announce the change
+    engine = get_engine()
+    engine.speak(f"Speak hotkey changed to {new_hotkey.replace('+', ' ')}")
+
+
+def on_pause_hotkey_change(new_hotkey: str):
+    """Handle pause hotkey change from tray menu."""
+    global _current_pause_hotkey
+
+    old_hotkey = _current_pause_hotkey
+    logger.info(f"Changing pause hotkey: {old_hotkey} -> {new_hotkey}")
+
+    # Unregister old hotkey
+    try:
+        keyboard.remove_hotkey(old_hotkey)
+    except (KeyError, ValueError):
+        pass  # Hotkey wasn't registered
+
+    # Register new hotkey
+    keyboard.add_hotkey(new_hotkey, on_pause_resume, suppress=True)
+    _current_pause_hotkey = new_hotkey
+
+    # Save to settings
+    set_setting("hotkey_pause", new_hotkey)
+
+    # Announce the change
+    engine = get_engine()
+    engine.speak(f"Pause hotkey changed to {new_hotkey.replace('+', ' ')}")
+
+
 def update_tray_state():
     """Update tray icon state based on engine state."""
     if not _tray_app:
@@ -218,13 +268,18 @@ def update_tray_state():
 
 def main():
     """Main entry point."""
-    global _tray_app
+    global _tray_app, _current_speak_hotkey, _current_pause_hotkey
 
     setup_logging()
 
+    # Load settings
+    settings = load_settings()
+    _current_speak_hotkey = settings.get("hotkey_speak", DEFAULT_SPEAK_HOTKEY)
+    _current_pause_hotkey = settings.get("hotkey_pause", DEFAULT_PAUSE_HOTKEY)
+
     logger.info("Herald started")
-    logger.info(f"  Speak:     {DEFAULT_HOTKEY}")
-    logger.info(f"  Pause:     {PAUSE_HOTKEY}")
+    logger.info(f"  Speak:     {_current_speak_hotkey}")
+    logger.info(f"  Pause:     {_current_pause_hotkey}")
     logger.info(f"  Speed up:  {SPEED_UP_HOTKEY}")
     logger.info(f"  Slow down: {SPEED_DOWN_HOTKEY}")
     logger.info(f"  Stop:      {STOP_HOTKEY}")
@@ -236,22 +291,25 @@ def main():
     logger.info(f"Voice: {engine.voice_name}, Speed: {engine.rate} wpm")
 
     # Start tray app
-    settings = load_settings()
     _tray_app = TrayApp(
         on_voice_change=on_voice_change,
         on_speed_change=on_speed_change,
         on_pause_toggle=on_pause_resume,
         on_console_toggle=on_console_toggle,
+        on_speak_hotkey_change=on_speak_hotkey_change,
+        on_pause_hotkey_change=on_pause_hotkey_change,
         on_quit=on_quit,
         current_voice=engine.voice_name,
         current_speed=engine.rate,
+        current_speak_hotkey=_current_speak_hotkey,
+        current_pause_hotkey=_current_pause_hotkey,
         console_visible=True,
     )
     _tray_app.start_async()
 
     # Register hotkeys
-    keyboard.add_hotkey(DEFAULT_HOTKEY, on_speak_hotkey, suppress=True)
-    keyboard.add_hotkey(PAUSE_HOTKEY, on_pause_resume, suppress=True)
+    keyboard.add_hotkey(_current_speak_hotkey, on_speak_hotkey, suppress=True)
+    keyboard.add_hotkey(_current_pause_hotkey, on_pause_resume, suppress=True)
     keyboard.add_hotkey(STOP_HOTKEY, on_stop_hotkey, suppress=False)
     keyboard.add_hotkey(SPEED_UP_HOTKEY, on_speed_up, suppress=True)
     keyboard.add_hotkey(SPEED_DOWN_HOTKEY, on_speed_down, suppress=True)

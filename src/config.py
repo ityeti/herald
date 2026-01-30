@@ -13,10 +13,12 @@ PROJECT_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = PROJECT_ROOT / "config"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 
-# Hotkeys (not user-configurable yet)
-DEFAULT_HOTKEY = "alt+s"      # Speak clipboard
+# Hotkey defaults (configurable via tray menu)
+DEFAULT_SPEAK_HOTKEY = "alt+s"
+DEFAULT_PAUSE_HOTKEY = "alt+p"
+
+# Fixed hotkeys (not configurable)
 STOP_HOTKEY = "escape"        # Stop speaking
-PAUSE_HOTKEY = "alt+p"        # Pause/resume
 SPEED_UP_HOTKEY = "alt+]"     # Increase rate
 SPEED_DOWN_HOTKEY = "alt+["   # Decrease rate
 QUIT_HOTKEY = "alt+q"         # Exit application
@@ -46,6 +48,8 @@ DEFAULT_SETTINGS = {
     "engine": DEFAULT_ENGINE,
     "voice": DEFAULT_VOICE,
     "rate": DEFAULT_RATE,
+    "hotkey_speak": DEFAULT_SPEAK_HOTKEY,
+    "hotkey_pause": DEFAULT_PAUSE_HOTKEY,
 }
 
 

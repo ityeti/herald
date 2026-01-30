@@ -40,25 +40,49 @@ class TrayApp:
         (1200, "1200 wpm"),
     ]
 
+    # Hotkey options for speak
+    SPEAK_HOTKEYS = [
+        ("alt+s", "Alt + S"),
+        ("ctrl+shift+s", "Ctrl + Shift + S"),
+        ("f9", "F9"),
+        ("alt+r", "Alt + R"),
+        ("ctrl+`", "Ctrl + `"),
+    ]
+
+    # Hotkey options for pause
+    PAUSE_HOTKEYS = [
+        ("alt+p", "Alt + P"),
+        ("ctrl+shift+p", "Ctrl + Shift + P"),
+        ("f10", "F10"),
+    ]
+
     def __init__(
         self,
         on_voice_change: Optional[Callable[[str], None]] = None,
         on_speed_change: Optional[Callable[[int], None]] = None,
         on_pause_toggle: Optional[Callable[[], None]] = None,
         on_console_toggle: Optional[Callable[[bool], None]] = None,
+        on_speak_hotkey_change: Optional[Callable[[str], None]] = None,
+        on_pause_hotkey_change: Optional[Callable[[str], None]] = None,
         on_quit: Optional[Callable[[], None]] = None,
         current_voice: str = "aria",
         current_speed: int = 500,
+        current_speak_hotkey: str = "alt+s",
+        current_pause_hotkey: str = "alt+p",
         console_visible: bool = True,
     ):
         self.on_voice_change = on_voice_change
         self.on_speed_change = on_speed_change
         self.on_pause_toggle = on_pause_toggle
         self.on_console_toggle = on_console_toggle
+        self.on_speak_hotkey_change = on_speak_hotkey_change
+        self.on_pause_hotkey_change = on_pause_hotkey_change
         self.on_quit_callback = on_quit
 
         self.current_voice = current_voice
         self.current_speed = current_speed
+        self.current_speak_hotkey = current_speak_hotkey
+        self.current_pause_hotkey = current_pause_hotkey
         self.console_visible = console_visible
         self.is_paused = False
         self.is_speaking = False
@@ -164,6 +188,28 @@ class TrayApp:
             ),
         ]
 
+        # Speak hotkey submenu
+        speak_hotkey_items = []
+        for hotkey, label in self.SPEAK_HOTKEYS:
+            speak_hotkey_items.append(
+                pystray.MenuItem(
+                    label,
+                    self._make_speak_hotkey_callback(hotkey),
+                    checked=lambda item, h=hotkey: self.current_speak_hotkey == h
+                )
+            )
+
+        # Pause hotkey submenu
+        pause_hotkey_items = []
+        for hotkey, label in self.PAUSE_HOTKEYS:
+            pause_hotkey_items.append(
+                pystray.MenuItem(
+                    label,
+                    self._make_pause_hotkey_callback(hotkey),
+                    checked=lambda item, h=hotkey: self.current_pause_hotkey == h
+                )
+            )
+
         return pystray.Menu(
             pystray.MenuItem(
                 "Voice (Online)",
@@ -184,6 +230,19 @@ class TrayApp:
                 enabled=self.is_speaking or self.is_paused
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                "Hotkeys",
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "Speak",
+                        pystray.Menu(*speak_hotkey_items)
+                    ),
+                    pystray.MenuItem(
+                        "Pause",
+                        pystray.Menu(*pause_hotkey_items)
+                    ),
+                )
+            ),
             pystray.MenuItem(
                 "Console",
                 pystray.Menu(*console_items)
@@ -222,6 +281,28 @@ class TrayApp:
                 self.console_visible = visible
                 if self.on_console_toggle:
                     self.on_console_toggle(visible)
+                self._refresh_menu()
+        return callback
+
+    def _make_speak_hotkey_callback(self, hotkey: str):
+        """Create callback for speak hotkey selection."""
+        def callback():
+            if hotkey != self.current_speak_hotkey:
+                logger.info(f"Speak hotkey: {hotkey}")
+                self.current_speak_hotkey = hotkey
+                if self.on_speak_hotkey_change:
+                    self.on_speak_hotkey_change(hotkey)
+                self._refresh_menu()
+        return callback
+
+    def _make_pause_hotkey_callback(self, hotkey: str):
+        """Create callback for pause hotkey selection."""
+        def callback():
+            if hotkey != self.current_pause_hotkey:
+                logger.info(f"Pause hotkey: {hotkey}")
+                self.current_pause_hotkey = hotkey
+                if self.on_pause_hotkey_change:
+                    self.on_pause_hotkey_change(hotkey)
                 self._refresh_menu()
         return callback
 
@@ -281,6 +362,16 @@ class TrayApp:
     def set_speed(self, speed: int):
         """Update current speed (for menu checkmark)."""
         self.current_speed = speed
+        self._refresh_menu()
+
+    def set_speak_hotkey(self, hotkey: str):
+        """Update current speak hotkey (for menu checkmark)."""
+        self.current_speak_hotkey = hotkey
+        self._refresh_menu()
+
+    def set_pause_hotkey(self, hotkey: str):
+        """Update current pause hotkey (for menu checkmark)."""
+        self.current_pause_hotkey = hotkey
         self._refresh_menu()
 
     def start_async(self):
