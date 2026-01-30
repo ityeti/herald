@@ -135,6 +135,11 @@ Settings are saved to `config/settings.json`:
 - Pause only works with neural voices (edge-tts)
 - Offline voices (pyttsx3) don't support true pause
 
+### Speed limits
+- Neural voices (edge-tts) have an effective range of ~150-900 wpm
+- Speeds outside this range will work but won't sound faster/slower
+- Offline voices support the full 100-1200 wpm range
+
 ## Project Structure
 
 ```
