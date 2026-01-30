@@ -66,6 +66,7 @@ if not exist "venv\Lib\site-packages\pyttsx3" (
 
 :: Ready to run
 echo   Alt+S   Speak clipboard
+echo   Alt+P   Pause/resume
 echo   Alt+]   Speed up
 echo   Alt+[   Slow down
 echo   Escape  Stop speaking

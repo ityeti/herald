@@ -16,6 +16,7 @@ SETTINGS_FILE = CONFIG_DIR / "settings.json"
 # Hotkeys (not user-configurable yet)
 DEFAULT_HOTKEY = "alt+s"      # Speak clipboard
 STOP_HOTKEY = "escape"        # Stop speaking
+PAUSE_HOTKEY = "alt+p"        # Pause/resume
 SPEED_UP_HOTKEY = "alt+]"     # Increase rate
 SPEED_DOWN_HOTKEY = "alt+["   # Decrease rate
 QUIT_HOTKEY = "alt+q"         # Exit application
@@ -27,7 +28,9 @@ MAX_RATE = 600
 RATE_STEP = 25       # Amount to change per speed hotkey press
 
 # Voice defaults
-DEFAULT_VOICE = "zira"  # "zira" (female) or "david" (male)
+# Edge voices: aria, guy, jenny, christopher (online, neural)
+# Pyttsx3 voices: zira, david (offline, Windows SAPI)
+DEFAULT_VOICE = "aria"
 
 # Logging
 LOG_DIR = "logs"
@@ -35,8 +38,12 @@ LOG_FILE = "herald.log"
 LOG_ROTATION = "10 MB"
 LOG_RETENTION = "7 days"
 
+# Engine: "edge" (online, better quality) or "pyttsx3" (offline)
+DEFAULT_ENGINE = "edge"
+
 # Default settings structure
 DEFAULT_SETTINGS = {
+    "engine": DEFAULT_ENGINE,
     "voice": DEFAULT_VOICE,
     "rate": DEFAULT_RATE,
 }

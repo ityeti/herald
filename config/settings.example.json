@@ -1,4 +1,5 @@
 {
-  "voice": "zira",
+  "engine": "edge",
+  "voice": "aria",
   "rate": 500
 }

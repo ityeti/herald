@@ -4,6 +4,9 @@ venv/
 # User settings (use settings.example.json as template)
 config/settings.json
 
+# Temp audio files (edge-tts)
+temp/
+
 # Python
 __pycache__/
 *.py[cod]

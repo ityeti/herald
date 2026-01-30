@@ -9,6 +9,7 @@ Usage:
 
 Hotkeys:
     Alt+S   - Speak clipboard text
+    Alt+P   - Pause/resume
     Alt+]   - Speed up
     Alt+[   - Slow down
     Escape  - Stop speaking
@@ -23,7 +24,7 @@ import keyboard
 from loguru import logger
 
 from config import (
-    DEFAULT_HOTKEY, STOP_HOTKEY, SPEED_UP_HOTKEY,
+    DEFAULT_HOTKEY, STOP_HOTKEY, PAUSE_HOTKEY, SPEED_UP_HOTKEY,
     SPEED_DOWN_HOTKEY, QUIT_HOTKEY, RATE_STEP, MIN_RATE, MAX_RATE
 )
 from tts_engine import get_engine
@@ -53,6 +54,17 @@ def on_stop_hotkey():
     if engine.is_speaking:
         logger.info("Stopped")
         engine.stop()
+
+
+def on_pause_resume():
+    """Toggle pause/resume."""
+    engine = get_engine()
+    if engine.is_paused:
+        logger.info("Resumed")
+        engine.resume()
+    elif engine.is_speaking:
+        logger.info("Paused")
+        engine.pause()
 
 
 def on_speed_up():
@@ -98,6 +110,7 @@ def main():
 
     logger.info("Herald started")
     logger.info(f"  Speak:     {DEFAULT_HOTKEY}")
+    logger.info(f"  Pause:     {PAUSE_HOTKEY}")
     logger.info(f"  Speed up:  {SPEED_UP_HOTKEY}")
     logger.info(f"  Slow down: {SPEED_DOWN_HOTKEY}")
     logger.info(f"  Stop:      {STOP_HOTKEY}")
@@ -106,6 +119,7 @@ def main():
 
     # Register hotkeys
     keyboard.add_hotkey(DEFAULT_HOTKEY, on_speak_hotkey, suppress=True)
+    keyboard.add_hotkey(PAUSE_HOTKEY, on_pause_resume, suppress=True)
     keyboard.add_hotkey(STOP_HOTKEY, on_stop_hotkey, suppress=False)
     keyboard.add_hotkey(SPEED_UP_HOTKEY, on_speed_up, suppress=True)
     keyboard.add_hotkey(SPEED_DOWN_HOTKEY, on_speed_down, suppress=True)

@@ -1,8 +1,12 @@
 # Herald - Text-to-Speech Utility
 # Python 3.10+
 
-# TTS Engine (MVP: pyttsx3, can swap to edge-tts later for better voices)
-pyttsx3>=2.90
+# TTS Engines
+pyttsx3>=2.90          # Offline TTS (Windows SAPI)
+edge-tts>=6.1.0        # Online TTS (Microsoft Azure neural voices)
+
+# Audio playback (for edge-tts)
+pygame>=2.5.0
 
 # Global hotkey listener (requires admin on Windows)
 keyboard>=0.13.5
@@ -13,6 +17,6 @@ pyperclip>=1.8.2
 # Logging (rotating file logs for debugging)
 loguru>=0.7.2
 
-# System tray (Phase 2)
-# pystray>=0.19.4
-# Pillow>=10.0.0  # Required by pystray for icons
+# System tray
+pystray>=0.19.4
+Pillow>=10.0.0
