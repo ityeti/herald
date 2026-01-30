@@ -47,11 +47,19 @@ def on_speak_hotkey():
 
     if text:
         preview = f"{text[:50]}..." if len(text) > 50 else text
-        logger.info(f"Speaking: {preview}")
         engine = get_engine()
+
+        # Show generating message for edge-tts (has network delay)
+        if isinstance(engine, EdgeTTSEngine):
+            logger.info(f"Generating: {preview}")
+            if _tray_app:
+                _tray_app.set_generating(True)
+        else:
+            logger.info(f"Speaking: {preview}")
+            if _tray_app:
+                _tray_app.set_speaking(True)
+
         engine.speak(text)
-        if _tray_app:
-            _tray_app.set_speaking(True)
     else:
         logger.warning("No text to speak (clipboard empty)")
 
@@ -130,21 +138,29 @@ def on_voice_change(voice: str):
     """Handle voice change from tray menu."""
     logger.info(f"Changing voice to: {voice}")
 
-    # Determine which engine to use
+    # Stop any current speech first
+    current_engine = get_engine()
+    current_engine.stop()
+
+    # Determine which engine to use and switch if needed
     if voice in EdgeTTSEngine.VOICES:
-        engine = get_engine()
-        if not isinstance(engine, EdgeTTSEngine):
+        if not isinstance(current_engine, EdgeTTSEngine):
+            logger.info("Switching to Edge TTS engine...")
             switch_engine("edge")
-            engine = get_engine()
+        engine = get_engine()
         engine.voice_name = voice
     elif voice in Pyttsx3Engine.VOICES:
-        engine = get_engine()
-        if not isinstance(engine, Pyttsx3Engine):
+        if not isinstance(current_engine, Pyttsx3Engine):
+            logger.info("Switching to offline engine...")
             switch_engine("pyttsx3")
-            engine = get_engine()
+        engine = get_engine()
         engine.voice_name = voice
+    else:
+        logger.warning(f"Unknown voice: {voice}")
+        return
 
     # Announce the change
+    logger.info(f"Generating audio for {voice}...")
     engine = get_engine()
     engine.speak(f"Voice changed to {voice}")
 
@@ -182,8 +198,18 @@ def update_tray_state():
         return
 
     engine = get_engine()
-    _tray_app.set_speaking(engine.is_speaking)
-    _tray_app.set_paused(engine.is_paused)
+
+    # Check generating first (edge-tts only)
+    if hasattr(engine, 'is_generating') and engine.is_generating:
+        _tray_app.set_generating(True)
+    elif engine.is_speaking:
+        _tray_app.set_speaking(True)
+    elif engine.is_paused:
+        _tray_app.set_paused(True)
+    else:
+        _tray_app.set_speaking(False)
+        _tray_app.set_paused(False)
+        _tray_app.set_generating(False)
 
 
 def main():

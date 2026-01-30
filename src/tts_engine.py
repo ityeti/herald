@@ -54,6 +54,11 @@ class BaseTTSEngine(ABC):
         pass
 
     @property
+    def is_generating(self) -> bool:
+        """Whether currently generating audio (edge-tts only)."""
+        return False  # Default: no generation phase
+
+    @property
     @abstractmethod
     def rate(self) -> int:
         """Current speech rate."""
@@ -219,7 +224,8 @@ class EdgeTTSEngine(BaseTTSEngine):
         # Initialize pygame mixer
         pygame.mixer.init()
 
-        self._speaking = False
+        self._generating = False  # True while fetching audio from API
+        self._speaking = False    # True while audio is playing
         self._paused = False
         self._audio_file: Optional[str] = None
         self._thread: Optional[threading.Thread] = None
@@ -256,7 +262,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         self.stop()
 
         def _speak_thread():
-            self._speaking = True
+            self._generating = True
             self._paused = False
             try:
                 # Generate audio file
@@ -267,12 +273,16 @@ class EdgeTTSEngine(BaseTTSEngine):
                 # Create temp file
                 self._audio_file = str(self._temp_dir / "herald_speech.mp3")
 
-                # Run async edge-tts
+                # Run async edge-tts (this is the slow part)
                 async def generate():
                     communicate = edge_tts.Communicate(text, voice_id, rate=rate)
                     await communicate.save(self._audio_file)
 
                 asyncio.run(generate())
+
+                # Done generating, now playing
+                self._generating = False
+                self._speaking = True
 
                 # Play the audio
                 self._pygame.mixer.music.load(self._audio_file)
@@ -287,6 +297,7 @@ class EdgeTTSEngine(BaseTTSEngine):
             except Exception as e:
                 logger.error(f"Edge TTS error: {e}")
             finally:
+                self._generating = False
                 self._speaking = False
                 self._cleanup_audio()
 
@@ -302,7 +313,13 @@ class EdgeTTSEngine(BaseTTSEngine):
         except Exception:
             pass
 
+    @property
+    def is_generating(self) -> bool:
+        """Whether currently generating audio (before playback)."""
+        return self._generating
+
     def stop(self) -> None:
+        self._generating = False
         self._speaking = False
         self._paused = False
         try:

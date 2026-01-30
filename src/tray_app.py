@@ -60,9 +60,12 @@ class TrayApp:
 
         self.icon: Optional[pystray.Icon] = None
 
+        self.is_generating = False
+
         # Create icons for different states
         self.icons = {
             "idle": self._create_icon("gray"),
+            "generating": self._create_icon("orange"),
             "speaking": self._create_icon("green"),
             "paused": self._create_icon("yellow"),
         }
@@ -77,6 +80,7 @@ class TrayApp:
 
         color_map = {
             "gray": (128, 128, 128),
+            "orange": (255, 165, 0),
             "green": (50, 180, 50),
             "yellow": (255, 200, 0),
         }
@@ -93,6 +97,11 @@ class TrayApp:
         if color == "green":
             draw.arc([46, 20, 56, 44], -60, 60, fill=(50, 180, 50), width=2)
             draw.arc([50, 12, 64, 52], -60, 60, fill=(50, 180, 50), width=2)
+        elif color == "orange":
+            # Loading dots for generating state
+            draw.ellipse([48, 28, 52, 32], fill=(255, 165, 0))
+            draw.ellipse([54, 28, 58, 32], fill=(255, 200, 0))
+            draw.ellipse([60, 28, 64, 32], fill=(255, 235, 0))
         elif color == "yellow":
             # Pause bars
             draw.rectangle([48, 24, 52, 40], fill=(255, 200, 0))
@@ -236,12 +245,20 @@ class TrayApp:
                 self.icon.icon = self.icons["paused"]
             elif self.is_speaking:
                 self.icon.icon = self.icons["speaking"]
+            elif self.is_generating:
+                self.icon.icon = self.icons["generating"]
             else:
                 self.icon.icon = self.icons["idle"]
+
+    def set_generating(self, generating: bool):
+        """Update generating state (for edge-tts network delay)."""
+        self.is_generating = generating
+        self._update_icon()
 
     def set_speaking(self, speaking: bool):
         """Update speaking state."""
         self.is_speaking = speaking
+        self.is_generating = False  # Clear generating when speaking starts
         self._update_icon()
         self._refresh_menu()
 
