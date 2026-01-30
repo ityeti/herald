@@ -27,17 +27,19 @@ class TrayApp:
         ("david", "David (Male, Offline)"),
     ]
 
-    # Speed presets
+    # Speed presets (online voices effective range: 150-900 wpm)
     SPEED_PRESETS = [
-        (100, "100 wpm"),
+        (150, "150 wpm"),
         (200, "200 wpm"),
         (300, "300 wpm"),
         (400, "400 wpm"),
         (500, "500 wpm"),
         (600, "600 wpm"),
         (800, "800 wpm"),
-        (1000, "1000 wpm"),
-        (1200, "1200 wpm"),
+        (900, "900 wpm"),
+        (1000, "1000 wpm (Offline)"),
+        (1200, "1200 wpm (Offline)"),
+        (1500, "1500 wpm (Offline)"),
     ]
 
     # Hotkey options for speak

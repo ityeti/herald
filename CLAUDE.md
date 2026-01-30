@@ -68,7 +68,7 @@ Saved to `config/settings.json`:
 
 - [x] Neural voices via edge-tts (Aria, Jenny, Guy, Christopher)
 - [x] Offline fallback via pyttsx3 (Zira, David)
-- [x] Speed adjustment (100-1200 wpm)
+- [x] Speed adjustment (150-900 wpm online, up to 1500 wpm offline)
 - [x] Pause/resume (edge-tts only)
 - [x] System tray with full controls
 - [x] Configurable hotkeys (speak, pause)
@@ -89,7 +89,6 @@ Saved to `config/settings.json`:
 - OCR for images/screenshots
 - Double-click text to read selection
 - More hotkey options (speed, voice switching)
-- Show "(offline only)" suffix on 100, 1000, 1200 wpm speed presets in tray menu
 
 ## Related
 

@@ -9,7 +9,7 @@ A text-to-speech utility for Windows that reads clipboard text aloud using high-
 - **Global Hotkeys**: Works in any application
 - **System Tray**: Unobtrusive tray icon with menu controls
 - **Pause/Resume**: Pause mid-speech and resume later
-- **Adjustable Speed**: 100-1200 words per minute
+- **Adjustable Speed**: 150-900 wpm for online voices, up to 1500 wpm offline
 - **Settings Persistence**: Remembers your voice and speed preferences
 
 ## Requirements
@@ -71,7 +71,7 @@ Right-click the tray icon to access:
 
 - **Voice (Online)**: Aria, Jenny, Guy, Christopher (neural voices, requires internet)
 - **Voice (Offline)**: Zira, David (Windows SAPI voices, no internet needed)
-- **Speed**: Preset speeds (100-1200 wpm)
+- **Speed**: Preset speeds (150-900 wpm online, up to 1500 wpm offline)
 - **Pause/Resume**: Toggle when speaking
 - **Hotkeys**: Configure speak and pause hotkeys
 - **Console**: Show or hide the console window
@@ -85,7 +85,7 @@ Settings are saved to `config/settings.json`:
 {
   "engine": "edge",
   "voice": "aria",
-  "rate": 500,
+  "rate": 900,
   "hotkey_speak": "alt+s",
   "hotkey_pause": "alt+p"
 }
@@ -95,7 +95,7 @@ Settings are saved to `config/settings.json`:
 |---------|---------|-------------|
 | engine | edge, pyttsx3 | TTS engine (auto-selected based on voice) |
 | voice | aria, jenny, guy, christopher, zira, david | Voice name |
-| rate | 100-1200 | Words per minute |
+| rate | 150-1500 | Words per minute (online: 150-900, offline: up to 1500) |
 | hotkey_speak | alt+s, ctrl+shift+s, f9, alt+r, ctrl+` | Speak hotkey |
 | hotkey_pause | alt+p, ctrl+shift+p, f10 | Pause hotkey |
 
@@ -136,9 +136,9 @@ Settings are saved to `config/settings.json`:
 - Offline voices (pyttsx3) don't support true pause
 
 ### Speed limits
-- Neural voices (edge-tts) have an effective range of ~150-900 wpm
-- Speeds outside this range will work but won't sound faster/slower
-- Offline voices support the full 100-1200 wpm range
+- Neural voices (edge-tts) have an effective range of 150-900 wpm
+- Offline voices support the full 150-1500 wpm range
+- Speed presets above 900 wpm are marked "(Offline)" in the tray menu
 
 ## Project Structure
 
