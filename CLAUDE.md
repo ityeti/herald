@@ -62,7 +62,8 @@ Saved to `config/settings.json`:
   "voice": "aria",
   "rate": 500,
   "hotkey_speak": "alt+s",
-  "hotkey_pause": "alt+p"
+  "hotkey_pause": "alt+p",
+  "line_delay": 0
 }
 ```
 
@@ -79,6 +80,9 @@ Saved to `config/settings.json`:
 - [x] Console show/hide
 - [x] Visual feedback (tray icon states: idle/generating/speaking/paused)
 - [x] README documentation
+- [x] Line-by-line navigation (Alt+N/B to skip/back)
+- [x] Prefetch next line while current plays (edge-tts)
+- [x] Configurable delay between lines (tray menu)
 
 ## Next Steps (for public release)
 
