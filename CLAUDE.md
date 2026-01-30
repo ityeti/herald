@@ -13,9 +13,10 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 **Phase:** MVP Complete (tested and working)
 
 **Decisions made:**
-- TTS engine: **pyttsx3** for MVP (simple, offline) — can swap to edge-tts later for better voices
+- TTS engines: **edge-tts** (default, neural voices) + **pyttsx3** (offline fallback)
 - Hotkey library: **keyboard** (`keyboard.add_hotkey()`)
-- Hotkeys: **Alt+S** speak, **Alt+[/]** speed, **Escape** stop, **Alt+Q** quit
+- Hotkeys: **Alt+S** speak, **Alt+P** pause, **Alt+[/]** speed, **Escape** stop, **Alt+Q** quit
+- System tray: **pystray** with voice/speed/console controls
 - Logging: **loguru** → `logs/herald.log` (10MB rotation, 7 day retention)
 
 ## Tech Stack
@@ -34,12 +35,14 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 |-----------|---------|
 | src/ | Main application code |
 | src/main.py | Entry point, hotkey registration |
-| src/tts_engine.py | TTS abstraction layer |
+| src/tts_engine.py | TTS abstraction (edge-tts + pyttsx3) |
+| src/tray_app.py | System tray icon and menu |
 | src/text_grab.py | Clipboard/selection handling |
 | src/config.py | Settings management |
 | src/utils.py | Logging setup |
 | config/ | User settings (settings.json) |
 | logs/ | Application logs (herald.log) |
+| temp/ | Temporary audio files (edge-tts) |
 | .claude/docs/ | Research and design docs |
 
 ## Essential Commands
@@ -72,17 +75,24 @@ python src/main.py   # requires admin terminal
 4. Stop with Escape key
 5. Double-click launcher with auto-setup
 
-## Next Steps (Phase 2)
+## Completed Features
 
 - [x] Speed up/slow down hotkeys (Alt+[ / Alt+]) with audio feedback
 - [x] File logging (loguru → logs/herald.log)
 - [x] Quit hotkey (Alt+Q)
 - [x] Settings persistence (config/settings.json)
-- [x] Voice selection (zira/david via settings)
+- [x] Voice selection via tray menu
+- [x] System tray icon with controls
+- [x] Pause/resume functionality (Alt+P)
+- [x] edge-tts integration (Aria, Jenny, Guy, Christopher)
+- [x] Console show/hide via tray menu
+
+## Remaining Tasks
+
 - [ ] Module self-tests (`if __name__ == "__main__":`)
-- [ ] System tray icon with controls
-- [ ] Pause/resume functionality
-- [ ] edge-tts integration (better voices, requires internet)
+- [ ] README for public GitHub release
+- [ ] OCR for images (someday/maybe)
+- [ ] Double-click to read selection (someday/maybe)
 
 ## Additional Documentation
 

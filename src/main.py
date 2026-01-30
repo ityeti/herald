@@ -20,19 +20,25 @@ Requires admin privileges on Windows for global hotkeys.
 
 import sys
 import time
+import ctypes
 import keyboard
 from loguru import logger
+from typing import Optional
 
 from config import (
     DEFAULT_HOTKEY, STOP_HOTKEY, PAUSE_HOTKEY, SPEED_UP_HOTKEY,
-    SPEED_DOWN_HOTKEY, QUIT_HOTKEY, RATE_STEP, MIN_RATE, MAX_RATE
+    SPEED_DOWN_HOTKEY, QUIT_HOTKEY, RATE_STEP, MIN_RATE, MAX_RATE,
+    load_settings
 )
-from tts_engine import get_engine
+from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_text_to_speak
+from tray_app import TrayApp
 from utils import setup_logging
 
-# Flag to signal main loop to exit
+# Global state
 _quit_requested = False
+_tray_app: Optional[TrayApp] = None
+_console_visible = True
 
 
 def on_speak_hotkey():
@@ -44,6 +50,8 @@ def on_speak_hotkey():
         logger.info(f"Speaking: {preview}")
         engine = get_engine()
         engine.speak(text)
+        if _tray_app:
+            _tray_app.set_speaking(True)
     else:
         logger.warning("No text to speak (clipboard empty)")
 
@@ -54,6 +62,9 @@ def on_stop_hotkey():
     if engine.is_speaking:
         logger.info("Stopped")
         engine.stop()
+        if _tray_app:
+            _tray_app.set_speaking(False)
+            _tray_app.set_paused(False)
 
 
 def on_pause_resume():
@@ -62,9 +73,13 @@ def on_pause_resume():
     if engine.is_paused:
         logger.info("Resumed")
         engine.resume()
+        if _tray_app:
+            _tray_app.set_paused(False)
     elif engine.is_speaking:
         logger.info("Paused")
         engine.pause()
+        if _tray_app:
+            _tray_app.set_paused(True)
 
 
 def on_speed_up():
@@ -80,6 +95,9 @@ def on_speed_up():
         logger.info(f"Speed: {engine.rate} wpm (faster)")
         engine.speak("Faster")
 
+    if _tray_app:
+        _tray_app.set_speed(engine.rate)
+
 
 def on_speed_down():
     """Decrease speech rate."""
@@ -94,6 +112,9 @@ def on_speed_down():
         logger.info(f"Speed: {engine.rate} wpm (slower)")
         engine.speak("Slower")
 
+    if _tray_app:
+        _tray_app.set_speed(engine.rate)
+
 
 def on_quit():
     """Signal main loop to exit."""
@@ -104,8 +125,71 @@ def on_quit():
     engine.stop()
 
 
+# Tray app callbacks
+def on_voice_change(voice: str):
+    """Handle voice change from tray menu."""
+    logger.info(f"Changing voice to: {voice}")
+
+    # Determine which engine to use
+    if voice in EdgeTTSEngine.VOICES:
+        engine = get_engine()
+        if not isinstance(engine, EdgeTTSEngine):
+            switch_engine("edge")
+            engine = get_engine()
+        engine.voice_name = voice
+    elif voice in Pyttsx3Engine.VOICES:
+        engine = get_engine()
+        if not isinstance(engine, Pyttsx3Engine):
+            switch_engine("pyttsx3")
+            engine = get_engine()
+        engine.voice_name = voice
+
+    # Announce the change
+    engine = get_engine()
+    engine.speak(f"Voice changed to {voice}")
+
+
+def on_speed_change(speed: int):
+    """Handle speed change from tray menu."""
+    logger.info(f"Changing speed to: {speed}")
+    engine = get_engine()
+    engine.rate = speed
+    engine.speak(f"Speed set to {speed} words per minute")
+
+
+def on_console_toggle(visible: bool):
+    """Handle console visibility toggle from tray menu."""
+    global _console_visible
+    _console_visible = visible
+
+    # Get console window handle
+    kernel32 = ctypes.windll.kernel32
+    user32 = ctypes.windll.user32
+    hwnd = kernel32.GetConsoleWindow()
+
+    if hwnd:
+        if visible:
+            user32.ShowWindow(hwnd, 5)  # SW_SHOW
+            logger.info("Console shown")
+        else:
+            user32.ShowWindow(hwnd, 0)  # SW_HIDE
+            logger.info("Console hidden")
+
+
+def update_tray_state():
+    """Update tray icon state based on engine state."""
+    if not _tray_app:
+        return
+
+    engine = get_engine()
+    _tray_app.set_speaking(engine.is_speaking)
+    _tray_app.set_paused(engine.is_paused)
+
+
 def main():
     """Main entry point."""
+    global _tray_app
+
     setup_logging()
 
     logger.info("Herald started")
@@ -117,6 +201,24 @@ def main():
     logger.info(f"  Quit:      {QUIT_HOTKEY}")
     print()
 
+    # Initialize engine
+    engine = get_engine()
+    logger.info(f"Voice: {engine.voice_name}, Speed: {engine.rate} wpm")
+
+    # Start tray app
+    settings = load_settings()
+    _tray_app = TrayApp(
+        on_voice_change=on_voice_change,
+        on_speed_change=on_speed_change,
+        on_pause_toggle=on_pause_resume,
+        on_console_toggle=on_console_toggle,
+        on_quit=on_quit,
+        current_voice=engine.voice_name,
+        current_speed=engine.rate,
+        console_visible=True,
+    )
+    _tray_app.start_async()
+
     # Register hotkeys
     keyboard.add_hotkey(DEFAULT_HOTKEY, on_speak_hotkey, suppress=True)
     keyboard.add_hotkey(PAUSE_HOTKEY, on_pause_resume, suppress=True)
@@ -125,18 +227,18 @@ def main():
     keyboard.add_hotkey(SPEED_DOWN_HOTKEY, on_speed_down, suppress=True)
     keyboard.add_hotkey(QUIT_HOTKEY, on_quit, suppress=True)
 
-    engine = get_engine()
-    logger.info(f"Voice: {engine.voice_name}, Speed: {engine.rate} wpm")
-
     try:
-        # Poll for quit flag (keyboard.wait() blocks forever)
+        # Main loop - poll for quit and update tray state
         while not _quit_requested:
+            update_tray_state()
             time.sleep(0.1)
     except KeyboardInterrupt:
         logger.info("Ctrl+C - exiting")
 
     # Clean shutdown
     engine.stop()
+    if _tray_app:
+        _tray_app.stop()
     keyboard.unhook_all()
     logger.info("Herald stopped")
     sys.exit(0)
