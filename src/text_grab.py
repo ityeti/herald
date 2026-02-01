@@ -37,16 +37,23 @@ def get_clipboard_image():
         PIL Image if clipboard contains an image, None otherwise.
     """
     try:
-        from PIL import ImageGrab
+        from PIL import ImageGrab, Image
         image = ImageGrab.grabclipboard()
-        if image is not None:
-            # ImageGrab returns PIL Image for images, list of file paths for files
-            from PIL import Image
-            if isinstance(image, Image.Image):
-                return image
+
+        if image is None:
+            return None
+
+        if isinstance(image, Image.Image):
+            logger.debug(f"Found image in clipboard: {image.size[0]}x{image.size[1]}")
+            return image
+
+        if isinstance(image, list):
+            logger.debug(f"Clipboard contains file paths: {image}")
+            return None
+
         return None
     except Exception as e:
-        logger.debug(f"No image in clipboard: {e}")
+        logger.error(f"Error checking clipboard for image: {e}")
         return None
 
 

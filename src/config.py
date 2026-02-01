@@ -39,6 +39,9 @@ DEFAULT_READ_MODE = "lines"  # "lines" or "continuous"
 # Privacy
 DEFAULT_LOG_PREVIEW = True  # Show text preview in console/logs
 
+# Auto-copy
+DEFAULT_AUTO_COPY = True  # Auto Ctrl+C before reading (disable for terminals)
+
 # Voice defaults
 # Edge voices: aria, guy, jenny, christopher (online, neural)
 # Pyttsx3 voices: zira, david (offline, Windows SAPI)
@@ -63,6 +66,7 @@ DEFAULT_SETTINGS = {
     "line_delay": DEFAULT_LINE_DELAY,
     "read_mode": DEFAULT_READ_MODE,
     "log_preview": DEFAULT_LOG_PREVIEW,
+    "auto_copy": DEFAULT_AUTO_COPY,
 }
 
 

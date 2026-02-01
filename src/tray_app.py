@@ -83,6 +83,7 @@ class TrayApp:
         on_line_delay_change: Optional[Callable[[int], None]] = None,
         on_read_mode_change: Optional[Callable[[str], None]] = None,
         on_log_preview_change: Optional[Callable[[bool], None]] = None,
+        on_auto_copy_change: Optional[Callable[[bool], None]] = None,
         on_pause_toggle: Optional[Callable[[], None]] = None,
         on_console_toggle: Optional[Callable[[bool], None]] = None,
         on_speak_hotkey_change: Optional[Callable[[str], None]] = None,
@@ -93,6 +94,7 @@ class TrayApp:
         current_line_delay: int = 0,
         current_read_mode: str = "lines",
         current_log_preview: bool = True,
+        current_auto_copy: bool = True,
         current_speak_hotkey: str = "alt+s",
         current_pause_hotkey: str = "alt+p",
         console_visible: bool = True,
@@ -102,6 +104,7 @@ class TrayApp:
         self.on_line_delay_change = on_line_delay_change
         self.on_read_mode_change = on_read_mode_change
         self.on_log_preview_change = on_log_preview_change
+        self.on_auto_copy_change = on_auto_copy_change
         self.on_pause_toggle = on_pause_toggle
         self.on_console_toggle = on_console_toggle
         self.on_speak_hotkey_change = on_speak_hotkey_change
@@ -113,6 +116,7 @@ class TrayApp:
         self.current_line_delay = current_line_delay
         self.current_read_mode = current_read_mode
         self.current_log_preview = current_log_preview
+        self.current_auto_copy = current_auto_copy
         self.current_speak_hotkey = current_speak_hotkey
         self.current_pause_hotkey = current_pause_hotkey
         self.console_visible = console_visible
@@ -315,6 +319,11 @@ class TrayApp:
                 self._on_log_preview_toggle,
                 checked=lambda item: self.current_log_preview
             ),
+            pystray.MenuItem(
+                "Auto-Copy Selection",
+                self._on_auto_copy_toggle,
+                checked=lambda item: self.current_auto_copy
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", self._on_quit)
         )
@@ -369,6 +378,14 @@ class TrayApp:
         logger.info(f"Log preview: {self.current_log_preview}")
         if self.on_log_preview_change:
             self.on_log_preview_change(self.current_log_preview)
+        self._refresh_menu()
+
+    def _on_auto_copy_toggle(self):
+        """Toggle auto-copy on/off."""
+        self.current_auto_copy = not self.current_auto_copy
+        logger.info(f"Auto-copy: {self.current_auto_copy}")
+        if self.on_auto_copy_change:
+            self.on_auto_copy_change(self.current_auto_copy)
         self._refresh_menu()
 
     def _make_console_callback(self, visible: bool):

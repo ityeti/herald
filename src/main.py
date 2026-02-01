@@ -35,7 +35,7 @@ from config import (
     NEXT_LINE_HOTKEY, PREV_LINE_HOTKEY, OCR_REGION_HOTKEY,
     RATE_STEP, MIN_RATE, MAX_RATE, load_settings, set_setting,
     DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY, DEFAULT_LINE_DELAY,
-    DEFAULT_READ_MODE, DEFAULT_LOG_PREVIEW
+    DEFAULT_READ_MODE, DEFAULT_LOG_PREVIEW, DEFAULT_AUTO_COPY
 )
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_content_to_speak, ocr_image
@@ -80,6 +80,7 @@ _was_speaking = False  # Track state for auto-advance
 _line_delay = DEFAULT_LINE_DELAY  # Delay in ms between lines
 _read_mode = DEFAULT_READ_MODE  # "lines" or "continuous"
 _log_preview = DEFAULT_LOG_PREVIEW  # Show text in console/logs
+_auto_copy = DEFAULT_AUTO_COPY  # Auto Ctrl+C before reading
 
 
 def on_speak_hotkey():
@@ -87,7 +88,7 @@ def on_speak_hotkey():
     global _line_queue, _current_line_index
 
     # Auto-copy selection and get content (text or OCR'd image)
-    text, source = get_content_to_speak(auto_copy=True)
+    text, source = get_content_to_speak(auto_copy=_auto_copy)
 
     if not text:
         logger.warning("No text to speak (clipboard empty or OCR failed)")
@@ -421,6 +422,19 @@ def on_log_preview_change(enabled: bool):
         engine.speak("Text preview disabled")
 
 
+def on_auto_copy_change(enabled: bool):
+    """Handle auto-copy toggle from tray menu."""
+    global _auto_copy
+    logger.info(f"Auto-copy: {'enabled' if enabled else 'disabled'}")
+    _auto_copy = enabled
+    set_setting("auto_copy", enabled)
+    engine = get_engine()
+    if enabled:
+        engine.speak("Auto copy enabled")
+    else:
+        engine.speak("Auto copy disabled")
+
+
 def on_console_toggle(visible: bool):
     """Handle console visibility toggle from tray menu."""
     global _console_visible
@@ -533,7 +547,7 @@ def update_tray_state():
 def main():
     """Main entry point."""
     global _tray_app, _current_speak_hotkey, _current_pause_hotkey
-    global _line_delay, _read_mode, _log_preview
+    global _line_delay, _read_mode, _log_preview, _auto_copy
 
     # Ensure only one instance runs
     ensure_single_instance()
@@ -547,6 +561,7 @@ def main():
     _line_delay = settings.get("line_delay", DEFAULT_LINE_DELAY)
     _read_mode = settings.get("read_mode", DEFAULT_READ_MODE)
     _log_preview = settings.get("log_preview", DEFAULT_LOG_PREVIEW)
+    _auto_copy = settings.get("auto_copy", DEFAULT_AUTO_COPY)
 
     logger.info("Herald started")
     logger.info(f"  Speak:      {_current_speak_hotkey}")
@@ -573,6 +588,7 @@ def main():
         on_line_delay_change=on_line_delay_change,
         on_read_mode_change=on_read_mode_change,
         on_log_preview_change=on_log_preview_change,
+        on_auto_copy_change=on_auto_copy_change,
         on_pause_toggle=on_pause_resume,
         on_console_toggle=on_console_toggle,
         on_speak_hotkey_change=on_speak_hotkey_change,
@@ -583,6 +599,7 @@ def main():
         current_line_delay=_line_delay,
         current_read_mode=_read_mode,
         current_log_preview=_log_preview,
+        current_auto_copy=_auto_copy,
         current_speak_hotkey=_current_speak_hotkey,
         current_pause_hotkey=_current_pause_hotkey,
         console_visible=True,
