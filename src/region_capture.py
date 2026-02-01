@@ -25,6 +25,15 @@ def get_virtual_screen_bounds() -> Tuple[int, int, int, int]:
         Tuple of (left, top, width, height) for the virtual screen.
     """
     try:
+        # Enable DPI awareness for accurate coordinates
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
+
         user32 = ctypes.windll.user32
         # SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77
         # SM_CXVIRTUALSCREEN = 78, SM_CYVIRTUALSCREEN = 79
@@ -46,6 +55,16 @@ SELECTOR_SCRIPT = '''
 import tkinter as tk
 import json
 import sys
+import ctypes
+
+# Enable DPI awareness BEFORE creating any windows
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Per-monitor DPI aware
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
 
 class RegionSelector:
     def __init__(self, vscreen_left, vscreen_top, vscreen_width, vscreen_height):

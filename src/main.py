@@ -24,6 +24,16 @@ Requires admin privileges on Windows for global hotkeys.
 import sys
 import time
 import ctypes
+
+# Enable DPI awareness BEFORE any GUI operations
+# This ensures correct screen coordinates on high-DPI displays
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Per-monitor DPI aware
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
 import os
 import subprocess
 import keyboard
