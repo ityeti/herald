@@ -14,7 +14,7 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 
 **GitHub:** https://github.com/ityeti/herald (public)
 **Docs:** https://ityeti.com/herald/
-**Release:** [v0.1.0](https://github.com/ityeti/herald/releases/tag/v0.1.0)
+**Release:** [v0.2.0](https://github.com/ityeti/herald/releases/tag/v0.2.0)
 
 ## Tech Stack
 
@@ -119,7 +119,7 @@ Saved to `config/settings.json`:
 ## Known Issues
 
 - If keyboard gets stuck (rare), close Herald to release hooks
-- Packaged exe in `dist/` is outdated - run from source with `Launch_Herald.bat`
+- **pygame pkg_resources warning**: Pygame uses deprecated setuptools API internally. Suppressed in main.py with warning filter. Will be fixed when pygame updates to importlib.resources. See: https://github.com/pygame/pygame/issues
 
 ## Related
 

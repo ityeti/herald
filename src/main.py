@@ -22,6 +22,13 @@ Requires admin privileges on Windows for global hotkeys.
 """
 
 import sys
+import warnings
+
+# Suppress pygame's pkg_resources deprecation warning
+# This is a pygame internal issue (uses deprecated setuptools API)
+# See: https://github.com/pygame/pygame/issues - pygame needs to update to importlib.resources
+# TODO: Remove this filter once pygame updates their pkgdata.py
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
 import time
 import ctypes
 import pyperclip

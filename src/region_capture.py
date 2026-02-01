@@ -17,6 +17,39 @@ from loguru import logger
 from pathlib import Path
 
 
+def is_packaged() -> bool:
+    """Check if running as a PyInstaller packaged executable."""
+    return getattr(sys, 'frozen', False)
+
+
+def get_helper_path(helper_name: str) -> Optional[Path]:
+    """
+    Get path to a helper executable when running packaged.
+
+    Args:
+        helper_name: Name of helper (e.g., 'region_selector', 'overlay_border')
+
+    Returns:
+        Path to helper exe, or None if not found.
+    """
+    if not is_packaged():
+        return None
+
+    # When packaged, helpers are in _internal/ next to the main exe
+    exe_dir = Path(sys.executable).parent
+    helper_exe = exe_dir / "_internal" / f"{helper_name}.exe"
+
+    if helper_exe.exists():
+        return helper_exe
+
+    # Also check directly in exe directory (alternative packaging)
+    helper_exe = exe_dir / f"{helper_name}.exe"
+    if helper_exe.exists():
+        return helper_exe
+
+    return None
+
+
 def get_virtual_screen_bounds() -> Tuple[int, int, int, int]:
     """
     Get the bounding box of the entire virtual screen (all monitors).
@@ -182,14 +215,24 @@ def select_region() -> Optional[Tuple[int, int, int, int]]:
         logger.debug(f"Virtual screen: left={vscreen[0]}, top={vscreen[1]}, "
                      f"width={vscreen[2]}, height={vscreen[3]}")
 
-        # Write the selector script to a temp file
-        script_path = Path(tempfile.gettempdir()) / "herald_region_selector.py"
-        script_path.write_text(SELECTOR_SCRIPT)
+        # Determine how to run the selector
+        helper_exe = get_helper_path("region_selector")
+
+        if helper_exe:
+            # Packaged mode - use bundled helper exe
+            logger.debug(f"Using helper exe: {helper_exe}")
+            cmd = [str(helper_exe),
+                   str(vscreen[0]), str(vscreen[1]), str(vscreen[2]), str(vscreen[3])]
+        else:
+            # Development mode - use Python script
+            script_path = Path(tempfile.gettempdir()) / "herald_region_selector.py"
+            script_path.write_text(SELECTOR_SCRIPT)
+            cmd = [sys.executable, str(script_path),
+                   str(vscreen[0]), str(vscreen[1]), str(vscreen[2]), str(vscreen[3])]
 
         # Run in subprocess with virtual screen bounds as arguments
         result = subprocess.run(
-            [sys.executable, str(script_path),
-             str(vscreen[0]), str(vscreen[1]), str(vscreen[2]), str(vscreen[3])],
+            cmd,
             capture_output=True,
             text=True,
             timeout=120,  # 2 minute timeout

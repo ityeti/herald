@@ -15,13 +15,21 @@ from pathlib import Path
 # Get the project root (parent of packaging folder)
 SPEC_DIR = Path(SPECPATH)
 PROJECT_ROOT = SPEC_DIR.parent
+HELPERS_DIST = SPEC_DIR / 'helpers' / 'dist'
 
 block_cipher = None
+
+# Helper executables for OCR overlay (tkinter apps built separately)
+helper_binaries = []
+if (HELPERS_DIST / 'region_selector.exe').exists():
+    helper_binaries.append((str(HELPERS_DIST / 'region_selector.exe'), '.'))
+if (HELPERS_DIST / 'overlay_border.exe').exists():
+    helper_binaries.append((str(HELPERS_DIST / 'overlay_border.exe'), '.'))
 
 a = Analysis(
     [str(PROJECT_ROOT / 'src' / 'main.py')],
     pathex=[str(PROJECT_ROOT / 'src')],
-    binaries=[],
+    binaries=helper_binaries,
     datas=[],
     hiddenimports=[
         # pystray and PIL
@@ -63,7 +71,7 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[
         # Exclude unnecessary modules to reduce size
-        'tkinter',
+        # Note: tkinter is required for region capture overlay
         'matplotlib',
         'numpy',
         'pandas',

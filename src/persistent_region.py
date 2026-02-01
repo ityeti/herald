@@ -20,7 +20,7 @@ from loguru import logger
 from pathlib import Path
 from difflib import SequenceMatcher
 
-from region_capture import get_virtual_screen_bounds, select_region
+from region_capture import get_virtual_screen_bounds, select_region, is_packaged, get_helper_path
 from text_grab import ocr_image
 
 
@@ -254,14 +254,24 @@ class PersistentRegion:
             return
 
         try:
-            # Write overlay script to temp file
-            script_path = Path(tempfile.gettempdir()) / "herald_overlay.py"
-            script_path.write_text(OVERLAY_SCRIPT)
+            x1, y1, x2, y2 = self.region
+
+            # Determine how to run the overlay
+            helper_exe = get_helper_path("overlay_border")
+
+            if helper_exe:
+                # Packaged mode - use bundled helper exe
+                logger.debug(f"Using helper exe: {helper_exe}")
+                cmd = [str(helper_exe), str(x1), str(y1), str(x2), str(y2)]
+            else:
+                # Development mode - use Python script
+                script_path = Path(tempfile.gettempdir()) / "herald_overlay.py"
+                script_path.write_text(OVERLAY_SCRIPT)
+                cmd = [sys.executable, str(script_path), str(x1), str(y1), str(x2), str(y2)]
 
             # Start overlay process
-            x1, y1, x2, y2 = self.region
             self.overlay_process = subprocess.Popen(
-                [sys.executable, str(script_path), str(x1), str(y1), str(x2), str(y2)],
+                cmd,
                 stdin=subprocess.PIPE,
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
             )
