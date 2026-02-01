@@ -92,6 +92,12 @@ Double-click **`Launch_Herald.bat`** - it will:
 2. Draw a box around the text you want to read
 3. Text is OCR'd and read aloud automatically
 
+**Persistent region for PDFs/videos:**
+1. Press **Alt+M** to define a screen region (green border appears)
+2. Press **Alt+S** anytime to read from that region
+3. Enable "Auto-Read Monitor Region" in tray menu to read automatically when text changes
+4. Press **Alt+M** again to clear the region
+
 **Controls:**
 - Press **Alt+P** to pause/resume
 - Press **Escape** to stop
@@ -113,6 +119,7 @@ Double-click **`Autostart_Disable.bat`** (will prompt for admin rights).
 |--------|--------|
 | Alt+S | Speak selection/clipboard (auto-copies, supports OCR for images) |
 | Alt+O | OCR region capture (draw box on screen) |
+| Alt+M | Toggle persistent OCR region (for PDFs/videos) |
 | Alt+P | Pause/resume |
 | Alt+N | Skip to next line |
 | Alt+B | Go back to previous line |
@@ -138,6 +145,9 @@ Right-click the tray icon to access:
 - **Read Mode**: Line by Line (default) or Continuous (reads all text as one block)
 - **Line Delay**: Add a pause between lines (0-2000ms, only applies in Line by Line mode)
 - **Pause/Resume**: Toggle when speaking
+- **Grab & Speak Selection**: Auto-copy and speak when you select text
+- **Copy OCR to Clipboard**: Save OCR'd text for pasting
+- **Auto-Read Monitor Region**: Continuously read when text changes in persistent region
 - **Hotkeys**: Configure speak and pause hotkeys
 - **Console**: Show or hide the console window
 - **Show Text Preview**: Toggle whether text content appears in console/logs (privacy option)
