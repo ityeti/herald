@@ -20,3 +20,6 @@ loguru>=0.7.2
 # System tray
 pystray>=0.19.4
 Pillow>=10.0.0
+
+# OCR (Windows built-in)
+winocr>=0.0.5

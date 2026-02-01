@@ -31,6 +31,9 @@ A text-to-speech utility for Windows that reads clipboard text aloud using high-
 
 - **Neural Voices**: Microsoft Edge neural voices (Aria, Jenny, Guy, Christopher) via edge-tts
 - **Offline Fallback**: Windows SAPI voices (Zira, David) when offline
+- **OCR Support**: Read text from screenshots and images (Win+Shift+S → Alt+S)
+- **Region Capture**: Draw a box on screen to OCR and read (Alt+O) - great for PDFs
+- **Auto-Copy**: Just select text and press Alt+S - no need to Ctrl+C first
 - **Global Hotkeys**: Works in any application
 - **System Tray**: Unobtrusive tray icon with menu controls
 - **Pause/Resume**: Pause mid-speech and resume later
@@ -76,11 +79,23 @@ Double-click **`Launch_Herald.bat`** - it will:
 
 ### 3. Usage
 
-1. Copy text to your clipboard (Ctrl+C)
-2. Press **Alt+S** to hear it read aloud
-3. Press **Alt+P** to pause/resume
-4. Press **Escape** to stop
-5. Right-click the tray icon to change voice, speed, or hotkeys
+**Read selected text:**
+1. Select any text in any application
+2. Press **Alt+S** to hear it read aloud (auto-copies selection)
+
+**Read from screenshot:**
+1. Take a screenshot with **Win+Shift+S** and select a region
+2. Press **Alt+S** to OCR and read the text
+
+**Read from screen region (great for PDFs):**
+1. Press **Alt+O** to enter region capture mode
+2. Draw a box around the text you want to read
+3. Text is OCR'd and read aloud automatically
+
+**Controls:**
+- Press **Alt+P** to pause/resume
+- Press **Escape** to stop
+- Right-click the tray icon to change voice, speed, or hotkeys
 
 ### 4. Auto-Start with Windows (Optional)
 
@@ -96,7 +111,8 @@ Double-click **`Autostart_Disable.bat`** (will prompt for admin rights).
 
 | Hotkey | Action |
 |--------|--------|
-| Alt+S | Speak clipboard text |
+| Alt+S | Speak selection/clipboard (auto-copies, supports OCR for images) |
+| Alt+O | OCR region capture (draw box on screen) |
 | Alt+P | Pause/resume |
 | Alt+N | Skip to next line |
 | Alt+B | Go back to previous line |
@@ -210,7 +226,8 @@ herald/
     ├── main.py           # Application entry point
     ├── tts_engine.py     # TTS engine abstraction
     ├── tray_app.py       # System tray icon
-    ├── text_grab.py      # Clipboard handling
+    ├── text_grab.py      # Clipboard handling + OCR
+    ├── region_capture.py # Screen region selection
     ├── config.py         # Settings management
     └── utils.py          # Logging setup
 ```

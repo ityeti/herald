@@ -23,6 +23,7 @@ SPEED_UP_HOTKEY = "alt+]"     # Increase rate
 SPEED_DOWN_HOTKEY = "alt+["   # Decrease rate
 NEXT_LINE_HOTKEY = "alt+n"    # Skip to next line
 PREV_LINE_HOTKEY = "alt+b"    # Go back to previous line
+OCR_REGION_HOTKEY = "alt+o"   # OCR region capture
 QUIT_HOTKEY = "alt+q"         # Exit application
 
 # TTS defaults

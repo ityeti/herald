@@ -8,7 +8,8 @@ Usage:
     python main.py
 
 Hotkeys:
-    Alt+S   - Speak clipboard text (splits into lines)
+    Alt+S   - Speak clipboard/selection (auto-copies, supports OCR for images)
+    Alt+O   - OCR region capture (draw box on screen to read)
     Alt+P   - Pause/resume
     Alt+N   - Skip to next line
     Alt+B   - Go back to previous line
@@ -31,13 +32,14 @@ from typing import Optional
 
 from config import (
     STOP_HOTKEY, SPEED_UP_HOTKEY, SPEED_DOWN_HOTKEY, QUIT_HOTKEY,
-    NEXT_LINE_HOTKEY, PREV_LINE_HOTKEY,
+    NEXT_LINE_HOTKEY, PREV_LINE_HOTKEY, OCR_REGION_HOTKEY,
     RATE_STEP, MIN_RATE, MAX_RATE, load_settings, set_setting,
     DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY, DEFAULT_LINE_DELAY,
     DEFAULT_READ_MODE, DEFAULT_LOG_PREVIEW
 )
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
-from text_grab import get_text_to_speak
+from text_grab import get_content_to_speak, ocr_image
+from region_capture import select_and_capture
 from tray_app import TrayApp
 from utils import setup_logging
 
@@ -84,11 +86,15 @@ def on_speak_hotkey():
     """Called when the speak hotkey is pressed."""
     global _line_queue, _current_line_index
 
-    text = get_text_to_speak()
+    # Auto-copy selection and get content (text or OCR'd image)
+    text, source = get_content_to_speak(auto_copy=True)
 
     if not text:
-        logger.warning("No text to speak (clipboard empty)")
+        logger.warning("No text to speak (clipboard empty or OCR failed)")
         return
+
+    if source == "ocr":
+        logger.info("Reading text from image (OCR)")
 
     if _read_mode == "continuous":
         # Original behavior: speak all text as one block
@@ -99,6 +105,44 @@ def on_speak_hotkey():
 
         if not lines:
             logger.warning("No text to speak (only whitespace)")
+            return
+
+        _line_queue = lines
+        _current_line_index = 0
+        _speak_current_line()
+
+
+def on_ocr_region():
+    """Called when the OCR region capture hotkey is pressed."""
+    global _line_queue, _current_line_index
+
+    logger.info("OCR region capture - select area with mouse...")
+
+    # Capture screen region
+    image = select_and_capture()
+
+    if image is None:
+        logger.info("OCR cancelled")
+        return
+
+    # Run OCR on the captured region
+    text = ocr_image(image)
+
+    if not text:
+        logger.warning("OCR found no text in selection")
+        engine = get_engine()
+        engine.speak("No text found")
+        return
+
+    logger.info(f"OCR extracted {len(text)} characters")
+
+    if _read_mode == "continuous":
+        _speak_continuous(text)
+    else:
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+
+        if not lines:
+            logger.warning("OCR result was only whitespace")
             return
 
         _line_queue = lines
@@ -511,6 +555,7 @@ def main():
     logger.info(f"  Slow down:  {SPEED_DOWN_HOTKEY}")
     logger.info(f"  Next line:  {NEXT_LINE_HOTKEY}")
     logger.info(f"  Prev line:  {PREV_LINE_HOTKEY}")
+    logger.info(f"  OCR region: {OCR_REGION_HOTKEY}")
     logger.info(f"  Stop:       {STOP_HOTKEY}")
     logger.info(f"  Quit:       {QUIT_HOTKEY}")
     print()
@@ -552,6 +597,7 @@ def main():
     keyboard.add_hotkey(SPEED_DOWN_HOTKEY, on_speed_down, suppress=True)
     keyboard.add_hotkey(NEXT_LINE_HOTKEY, on_next_line, suppress=True)
     keyboard.add_hotkey(PREV_LINE_HOTKEY, on_prev_line, suppress=True)
+    keyboard.add_hotkey(OCR_REGION_HOTKEY, on_ocr_region, suppress=True)
     keyboard.add_hotkey(QUIT_HOTKEY, on_quit, suppress=True)
 
     try:

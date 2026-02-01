@@ -36,6 +36,8 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 | `Autostart_Disable.bat` | Remove from startup |
 | `src/main.py` | Entry point, hotkey registration |
 | `src/tts_engine.py` | TTS abstraction (edge-tts + pyttsx3) |
+| `src/text_grab.py` | Clipboard handling + OCR |
+| `src/region_capture.py` | Screen region selection overlay |
 | `src/tray_app.py` | System tray icon and menu |
 | `src/config.py` | Settings management |
 | `config/settings.json` | User preferences (auto-created) |
@@ -44,7 +46,8 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 
 | Hotkey | Action | Configurable |
 |--------|--------|--------------|
-| Alt+S | Speak clipboard | Yes (tray menu) |
+| Alt+S | Speak selection/clipboard (auto-copy, OCR images) | Yes (tray menu) |
+| Alt+O | OCR region capture (draw box on screen) | No |
 | Alt+P | Pause/resume | Yes (tray menu) |
 | Alt+N | Skip to next line | No |
 | Alt+B | Go back to previous line | No |
@@ -85,6 +88,9 @@ Saved to `config/settings.json`:
 - [x] Line-by-line navigation (Alt+N/B to skip/back)
 - [x] Prefetch next line while current plays (edge-tts)
 - [x] Configurable delay between lines (tray menu)
+- [x] Auto-copy selection (just select text and press Alt+S)
+- [x] OCR for clipboard images (Win+Shift+S screenshots)
+- [x] OCR region capture mode (Alt+O to draw box and read)
 
 ## Next Steps (for public release)
 
@@ -94,9 +100,9 @@ Saved to `config/settings.json`:
 
 ## Someday/Maybe
 
-- OCR for images/screenshots
-- Double-click text to read selection
+- Tesseract OCR as alternative to Windows OCR (for better accuracy)
 - More hotkey options (speed, voice switching)
+- Configurable OCR region hotkey
 
 ## Related
 
