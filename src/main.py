@@ -47,7 +47,8 @@ from config import (
     RATE_STEP, MIN_RATE, MAX_RATE, load_settings, set_setting,
     DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY, DEFAULT_LINE_DELAY,
     DEFAULT_READ_MODE, DEFAULT_LOG_PREVIEW, DEFAULT_AUTO_COPY,
-    DEFAULT_OCR_TO_CLIPBOARD
+    DEFAULT_OCR_TO_CLIPBOARD, DEFAULT_AUTO_READ,
+    DEFAULT_AUTO_READ_INTERVAL, DEFAULT_AUTO_READ_THRESHOLD
 )
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_content_to_speak, ocr_image
@@ -67,22 +68,35 @@ def safe_callback(func):
     return wrapper
 
 
-def ensure_single_instance():
+_instance_mutex = None  # Global to prevent garbage collection
+
+def ensure_single_instance(force: bool = False):
     """Ensure only one instance of Herald is running.
+
+    Args:
+        force: If True, skip the single instance check.
 
     Returns True if this is the only instance, False if another exists.
     """
+    global _instance_mutex
+
+    if force:
+        logger.warning("Force mode: skipping single instance check")
+        return True
+
     MUTEX_NAME = "Global\\HeraldSingleInstance"
 
     # Try to create a named mutex
     kernel32 = ctypes.windll.kernel32
-    mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
+    _instance_mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
     last_error = kernel32.GetLastError()
 
     # ERROR_ALREADY_EXISTS = 183 means another instance has the mutex
     if last_error == 183:
         print("Herald is already running. Check your system tray.")
         print("To start a new instance, close the existing one first.")
+        print("\nIf Herald is not visible, run: taskkill /F /IM python.exe")
+        print("Or restart Windows to clear the lock.")
         input("\nPress Enter to exit...")
         sys.exit(0)
 
@@ -105,9 +119,14 @@ _read_mode = DEFAULT_READ_MODE  # "lines" or "continuous"
 _log_preview = DEFAULT_LOG_PREVIEW  # Show text in console/logs
 _auto_copy = DEFAULT_AUTO_COPY  # Auto Ctrl+C before reading
 _ocr_to_clipboard = DEFAULT_OCR_TO_CLIPBOARD  # Copy OCR'd text to clipboard
+_auto_read = DEFAULT_AUTO_READ  # Auto-read when persistent region text changes
 
 # Persistent region for continuous OCR
 _persistent_region: Optional[PersistentRegion] = None
+
+# Queue for auto-read text (to handle from main thread)
+import queue
+_auto_read_queue: queue.Queue = queue.Queue()
 
 
 def on_speak_hotkey():
@@ -212,8 +231,8 @@ def on_monitor_region_toggle():
         # Create instance with auto-read callback
         _persistent_region = PersistentRegion(
             on_text_detected=_on_auto_read_text,
-            poll_interval=2.5,
-            change_threshold=0.5
+            poll_interval=DEFAULT_AUTO_READ_INTERVAL,
+            change_threshold=DEFAULT_AUTO_READ_THRESHOLD
         )
         set_persistent_region(_persistent_region)
 
@@ -226,19 +245,55 @@ def on_monitor_region_toggle():
     else:
         if _persistent_region.activate():
             engine = get_engine()
-            engine.speak("Monitor region active. Press Alt S to read, or Alt M to close.")
+            if _auto_read:
+                engine.speak("Monitor region active with auto-read.")
+                # Wait for announcement to finish before starting auto-read
+                # This prevents "run loop already started" error on first scan
+                for _ in range(30):  # Max 3 seconds
+                    time.sleep(0.1)
+                    if not engine.is_speaking:
+                        break
+                time.sleep(0.2)  # Small extra buffer
+                _persistent_region.set_auto_read(True)
+            else:
+                engine.speak("Monitor region active. Press Alt S to read, or Alt M to close.")
         else:
             logger.info("Region selection cancelled")
 
 
 def _on_auto_read_text(text: str):
-    """Callback when auto-read detects new text."""
-    global _line_queue, _current_line_index
-
+    """Callback when auto-read detects new text (called from background thread)."""
     if not text:
         return
 
     logger.info(f"Auto-read triggered ({len(text)} chars)")
+
+    # Clear any old queued text (we only want the latest)
+    while not _auto_read_queue.empty():
+        try:
+            _auto_read_queue.get_nowait()
+        except queue.Empty:
+            break
+
+    # Queue for main thread to handle (avoids asyncio event loop conflicts)
+    _auto_read_queue.put(text)
+
+
+def _process_auto_read_queue():
+    """Process any queued auto-read text (called from main loop)."""
+    global _line_queue, _current_line_index
+
+    # Don't process if TTS is busy (prevents "run loop already started" error)
+    engine = get_engine()
+    if engine.is_speaking or engine.is_paused or _line_queue:
+        return
+
+    try:
+        text = _auto_read_queue.get_nowait()
+    except queue.Empty:
+        return
+
+    logger.info(f"Processing auto-read text ({len(text)} chars)")
 
     # Copy to clipboard if enabled
     if _ocr_to_clipboard:
@@ -556,6 +611,27 @@ def on_ocr_to_clipboard_change(enabled: bool):
         engine.speak("OCR to clipboard disabled")
 
 
+def on_auto_read_change(enabled: bool):
+    """Handle auto-read toggle from tray menu."""
+    global _auto_read
+    logger.info(f"Auto-read: {'enabled' if enabled else 'disabled'}")
+    _auto_read = enabled
+    set_setting("auto_read", enabled)
+
+    # Update persistent region if active
+    if _persistent_region:
+        _persistent_region.set_auto_read(enabled)
+
+    engine = get_engine()
+    if enabled:
+        if _persistent_region and _persistent_region.is_active:
+            engine.speak("Auto-read enabled. Will read when text changes.")
+        else:
+            engine.speak("Auto-read enabled. Activate monitor region with Alt M.")
+    else:
+        engine.speak("Auto-read disabled")
+
+
 def on_console_toggle(visible: bool):
     """Handle console visibility toggle from tray menu."""
     global _console_visible
@@ -668,10 +744,13 @@ def update_tray_state():
 def main():
     """Main entry point."""
     global _tray_app, _current_speak_hotkey, _current_pause_hotkey
-    global _line_delay, _read_mode, _log_preview, _auto_copy, _ocr_to_clipboard
+    global _line_delay, _read_mode, _log_preview, _auto_copy, _ocr_to_clipboard, _auto_read
+
+    # Check for --force flag
+    force_start = "--force" in sys.argv or "-f" in sys.argv
 
     # Ensure only one instance runs
-    ensure_single_instance()
+    ensure_single_instance(force=force_start)
 
     setup_logging()
 
@@ -684,6 +763,7 @@ def main():
     _log_preview = settings.get("log_preview", DEFAULT_LOG_PREVIEW)
     _auto_copy = settings.get("auto_copy", DEFAULT_AUTO_COPY)
     _ocr_to_clipboard = settings.get("ocr_to_clipboard", DEFAULT_OCR_TO_CLIPBOARD)
+    _auto_read = settings.get("auto_read", DEFAULT_AUTO_READ)
 
     logger.info("Herald started")
     logger.info(f"  Speak:      {_current_speak_hotkey}")
@@ -713,6 +793,7 @@ def main():
         on_log_preview_change=on_log_preview_change,
         on_auto_copy_change=on_auto_copy_change,
         on_ocr_to_clipboard_change=on_ocr_to_clipboard_change,
+        on_auto_read_change=on_auto_read_change,
         on_pause_toggle=on_pause_resume,
         on_console_toggle=on_console_toggle,
         on_speak_hotkey_change=on_speak_hotkey_change,
@@ -725,6 +806,7 @@ def main():
         current_log_preview=_log_preview,
         current_auto_copy=_auto_copy,
         current_ocr_to_clipboard=_ocr_to_clipboard,
+        current_auto_read=_auto_read,
         current_speak_hotkey=_current_speak_hotkey,
         current_pause_hotkey=_current_pause_hotkey,
         console_visible=True,
@@ -749,6 +831,7 @@ def main():
         # Main loop - poll for quit and update tray state
         while not _quit_requested:
             update_tray_state()
+            _process_auto_read_queue()  # Handle auto-read from main thread
             time.sleep(0.1)
     except KeyboardInterrupt:
         logger.info("Ctrl+C - exiting")
@@ -770,6 +853,11 @@ def main():
         engine.stop()
         if _tray_app:
             _tray_app.stop()
+
+        # Release the mutex
+        if _instance_mutex:
+            ctypes.windll.kernel32.ReleaseMutex(_instance_mutex)
+            ctypes.windll.kernel32.CloseHandle(_instance_mutex)
 
         logger.info("Herald stopped")
         sys.exit(0)

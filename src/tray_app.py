@@ -85,6 +85,7 @@ class TrayApp:
         on_log_preview_change: Optional[Callable[[bool], None]] = None,
         on_auto_copy_change: Optional[Callable[[bool], None]] = None,
         on_ocr_to_clipboard_change: Optional[Callable[[bool], None]] = None,
+        on_auto_read_change: Optional[Callable[[bool], None]] = None,
         on_pause_toggle: Optional[Callable[[], None]] = None,
         on_console_toggle: Optional[Callable[[bool], None]] = None,
         on_speak_hotkey_change: Optional[Callable[[str], None]] = None,
@@ -97,6 +98,7 @@ class TrayApp:
         current_log_preview: bool = True,
         current_auto_copy: bool = True,
         current_ocr_to_clipboard: bool = True,
+        current_auto_read: bool = False,
         current_speak_hotkey: str = "alt+s",
         current_pause_hotkey: str = "alt+p",
         console_visible: bool = True,
@@ -108,6 +110,7 @@ class TrayApp:
         self.on_log_preview_change = on_log_preview_change
         self.on_auto_copy_change = on_auto_copy_change
         self.on_ocr_to_clipboard_change = on_ocr_to_clipboard_change
+        self.on_auto_read_change = on_auto_read_change
         self.on_pause_toggle = on_pause_toggle
         self.on_console_toggle = on_console_toggle
         self.on_speak_hotkey_change = on_speak_hotkey_change
@@ -121,6 +124,7 @@ class TrayApp:
         self.current_log_preview = current_log_preview
         self.current_auto_copy = current_auto_copy
         self.current_ocr_to_clipboard = current_ocr_to_clipboard
+        self.current_auto_read = current_auto_read
         self.current_speak_hotkey = current_speak_hotkey
         self.current_pause_hotkey = current_pause_hotkey
         self.console_visible = console_visible
@@ -333,6 +337,11 @@ class TrayApp:
                 self._on_ocr_to_clipboard_toggle,
                 checked=lambda item: self.current_ocr_to_clipboard
             ),
+            pystray.MenuItem(
+                "Auto-Read Monitor Region",
+                self._on_auto_read_toggle,
+                checked=lambda item: self.current_auto_read
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", self._on_quit)
         )
@@ -403,6 +412,14 @@ class TrayApp:
         logger.info(f"OCR to clipboard: {self.current_ocr_to_clipboard}")
         if self.on_ocr_to_clipboard_change:
             self.on_ocr_to_clipboard_change(self.current_ocr_to_clipboard)
+        self._refresh_menu()
+
+    def _on_auto_read_toggle(self):
+        """Toggle auto-read on/off."""
+        self.current_auto_read = not self.current_auto_read
+        logger.info(f"Auto-read: {self.current_auto_read}")
+        if self.on_auto_read_change:
+            self.on_auto_read_change(self.current_auto_read)
         self._refresh_menu()
 
     def _make_console_callback(self, visible: bool):

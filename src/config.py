@@ -45,6 +45,9 @@ DEFAULT_AUTO_COPY = True  # Auto Ctrl+C before reading (disable for terminals)
 
 # OCR settings
 DEFAULT_OCR_TO_CLIPBOARD = True  # Copy OCR'd text to clipboard
+DEFAULT_AUTO_READ = False  # Auto-read when persistent region text changes
+DEFAULT_AUTO_READ_INTERVAL = 2.5  # Seconds between OCR polls
+DEFAULT_AUTO_READ_THRESHOLD = 0.5  # Minimum change ratio to trigger read (0.5 = 50%)
 
 # Voice defaults
 # Edge voices: aria, guy, jenny, christopher (online, neural)
@@ -72,6 +75,7 @@ DEFAULT_SETTINGS = {
     "log_preview": DEFAULT_LOG_PREVIEW,
     "auto_copy": DEFAULT_AUTO_COPY,
     "ocr_to_clipboard": DEFAULT_OCR_TO_CLIPBOARD,
+    "auto_read": DEFAULT_AUTO_READ,
 }
 
 

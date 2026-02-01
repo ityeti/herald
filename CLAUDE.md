@@ -73,7 +73,8 @@ Saved to `config/settings.json`:
   "read_mode": "lines",
   "log_preview": true,
   "auto_copy": true,
-  "ocr_to_clipboard": true
+  "ocr_to_clipboard": true,
+  "auto_read": false
 }
 ```
 
@@ -98,6 +99,7 @@ Saved to `config/settings.json`:
 - [x] OCR region capture mode (Alt+O to draw box and read)
 - [x] Copy OCR'd text to clipboard (toggle in tray menu)
 - [x] Persistent OCR region (Alt+M) for PDFs and videos
+- [x] Auto-read mode (polls region, reads when text changes 50%+)
 
 ## Release Status
 
@@ -110,7 +112,7 @@ Saved to `config/settings.json`:
 ## Someday/Maybe
 
 - Tesseract OCR as alternative to Windows OCR (for better accuracy)
-- Auto-read mode for persistent region (poll and read on text change)
+- Configurable auto-read interval and threshold (currently 2.5s / 50%)
 - More hotkey options (speed, voice switching)
 - Configurable OCR hotkey
 

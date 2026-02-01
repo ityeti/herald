@@ -25,11 +25,13 @@ from text_grab import ocr_image
 
 
 # Persistent overlay script - runs in separate process
-# Shows a thin border around the selected region
+# Shows a rounded border OUTSIDE the capture region (so it doesn't appear in screenshots)
 OVERLAY_SCRIPT = '''
 import tkinter as tk
 import sys
 import ctypes
+import threading
+import queue
 
 # Enable DPI awareness
 try:
@@ -42,21 +44,34 @@ except Exception:
 
 class BorderOverlay:
     def __init__(self, x1, y1, x2, y2):
-        self.x1 = x1
-        self.y1 = y1
-        self.x2 = x2
-        self.y2 = y2
-        self.border_width = 3
+        # The capture region
+        self.capture_x1 = x1
+        self.capture_y1 = y1
+        self.capture_x2 = x2
+        self.capture_y2 = y2
+
+        # Border sits OUTSIDE the capture region
+        self.border_width = 4
+        self.corner_radius = 12
+        self.padding = self.border_width + 2  # Space between border and capture area
+
+        # Overlay window is larger than capture region
+        self.x1 = x1 - self.padding
+        self.y1 = y1 - self.padding
+        self.x2 = x2 + self.padding
+        self.y2 = y2 + self.padding
+
+        self.command_queue = queue.Queue()
 
     def run(self):
         self.root = tk.Tk()
         self.root.title("Herald OCR Region")
 
-        # Calculate dimensions
+        # Calculate dimensions (includes padding for border)
         width = self.x2 - self.x1
         height = self.y2 - self.y1
 
-        # Create a transparent window with just a border
+        # Create a transparent window
         self.root.overrideredirect(True)
         self.root.geometry(f"{width}x{height}+{self.x1}+{self.y1}")
         self.root.attributes('-topmost', True)
@@ -73,48 +88,73 @@ class BorderOverlay:
         )
         self.canvas.pack()
 
-        # Draw border rectangle
-        self.canvas.create_rectangle(
-            self.border_width // 2,
-            self.border_width // 2,
-            width - self.border_width // 2,
-            height - self.border_width // 2,
-            outline='#00FF00',  # Bright green
-            width=self.border_width
-        )
+        # Colors - darker, more modern green
+        border_color = '#2E7D32'  # Material Design Green 800
 
-        # Add small label in corner
-        self.canvas.create_text(
-            self.border_width + 5,
-            self.border_width + 5,
-            text="OCR",
-            fill='#00FF00',
-            font=('Arial', 9, 'bold'),
-            anchor='nw'
+        # Draw rounded rectangle border
+        self._draw_rounded_rect(
+            self.padding - self.border_width // 2,
+            self.padding - self.border_width // 2,
+            width - self.padding + self.border_width // 2,
+            height - self.padding + self.border_width // 2,
+            self.corner_radius,
+            border_color
         )
 
         # Close on Escape
         self.root.bind('<Escape>', lambda e: self.root.quit())
 
-        # Check for quit signal via stdin
-        self.root.after(100, self._check_stdin)
+        # Start stdin reader thread
+        self.stdin_thread = threading.Thread(target=self._read_stdin, daemon=True)
+        self.stdin_thread.start()
+
+        # Check for commands
+        self.root.after(50, self._check_commands)
 
         self.root.mainloop()
 
-    def _check_stdin(self):
-        """Check if parent process sent quit signal."""
+    def _draw_rounded_rect(self, x1, y1, x2, y2, radius, color):
+        """Draw a rounded rectangle border."""
+        r = radius
+        w = self.border_width
+
+        # Four corner arcs
+        self.canvas.create_arc(x1, y1, x1 + 2*r, y1 + 2*r, start=90, extent=90,
+                               style='arc', outline=color, width=w)
+        self.canvas.create_arc(x2 - 2*r, y1, x2, y1 + 2*r, start=0, extent=90,
+                               style='arc', outline=color, width=w)
+        self.canvas.create_arc(x2 - 2*r, y2 - 2*r, x2, y2, start=270, extent=90,
+                               style='arc', outline=color, width=w)
+        self.canvas.create_arc(x1, y2 - 2*r, x1 + 2*r, y2, start=180, extent=90,
+                               style='arc', outline=color, width=w)
+
+        # Four straight lines connecting the arcs
+        self.canvas.create_line(x1 + r, y1, x2 - r, y1, fill=color, width=w)  # Top
+        self.canvas.create_line(x1 + r, y2, x2 - r, y2, fill=color, width=w)  # Bottom
+        self.canvas.create_line(x1, y1 + r, x1, y2 - r, fill=color, width=w)  # Left
+        self.canvas.create_line(x2, y1 + r, x2, y2 - r, fill=color, width=w)  # Right
+
+    def _read_stdin(self):
+        """Read commands from stdin in background thread."""
         try:
-            import select
-            # On Windows, use msvcrt for non-blocking stdin check
-            import msvcrt
-            if msvcrt.kbhit():
-                char = msvcrt.getch()
-                if char == b'q':
-                    self.root.quit()
-                    return
+            while True:
+                char = sys.stdin.read(1)
+                if char:
+                    self.command_queue.put(char)
         except:
             pass
-        self.root.after(100, self._check_stdin)
+
+    def _check_commands(self):
+        """Process commands from queue."""
+        try:
+            while True:
+                cmd = self.command_queue.get_nowait()
+                if cmd == 'q':
+                    self.root.quit()
+                    return
+        except queue.Empty:
+            pass
+        self.root.after(50, self._check_commands)
 
 if __name__ == "__main__":
     if len(sys.argv) >= 5:
@@ -256,6 +296,7 @@ class PersistentRegion:
     def capture(self):
         """
         Capture the current region as an image.
+        Border is outside capture area so no need to hide it.
 
         Returns:
             PIL Image of the region, or None if no region active.
@@ -304,9 +345,10 @@ class PersistentRegion:
 
         self._stop_event.clear()
         self._auto_read_enabled = True
+        self._last_text = ""  # Clear so first scan always triggers
         self._auto_read_thread = threading.Thread(target=self._auto_read_loop, daemon=True)
         self._auto_read_thread.start()
-        logger.info(f"Auto-read started (poll: {self.poll_interval}s, threshold: {self.change_threshold*100}%)")
+        logger.info(f"Auto-read started (poll: {self.poll_interval}s, threshold: {self.change_threshold*100:.0f}%)")
 
     def _stop_auto_read(self):
         """Stop the auto-read polling thread."""
@@ -319,6 +361,7 @@ class PersistentRegion:
 
     def _auto_read_loop(self):
         """Background loop that polls for text changes."""
+        first_run = True
         while not self._stop_event.is_set() and self.is_active:
             try:
                 # Capture and OCR
@@ -326,12 +369,22 @@ class PersistentRegion:
                 if image:
                     text = ocr_image(image)
 
-                    if text and self._has_significant_change(text):
-                        logger.info(f"Text changed ({len(text)} chars), triggering read")
-                        self._last_text = text
+                    # Skip very short text (likely OCR artifacts or noise)
+                    if text and len(text.strip()) >= 10:
+                        # First run always reads, or when text changes significantly
+                        should_read = first_run or self._has_significant_change(text)
 
-                        if self.on_text_detected:
-                            self.on_text_detected(text)
+                        if should_read:
+                            logger.info(f"Auto-read: {'First scan' if first_run else 'Text changed'} ({len(text)} chars)")
+                            self._last_text = text
+                            first_run = False
+
+                            if self.on_text_detected:
+                                self.on_text_detected(text)
+                            else:
+                                logger.warning("Auto-read: No callback set!")
+                        else:
+                            logger.debug(f"Auto-read: No significant change ({len(text)} chars)")
 
             except Exception as e:
                 logger.error(f"Auto-read error: {e}")
