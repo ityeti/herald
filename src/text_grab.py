@@ -99,20 +99,24 @@ def get_content_to_speak(auto_copy: bool = True) -> Tuple[Optional[str], str]:
     Returns:
         Tuple of (text, source) where source is "text", "ocr", or "none".
     """
-    if auto_copy:
-        auto_copy_selection()
-
-    # Check for text first
-    text = get_clipboard_text()
-    if text:
-        return (text, "text")
-
-    # Check for image and OCR it
+    # Check for image FIRST - before auto-copy which would overwrite it
     image = get_clipboard_image()
     if image:
+        logger.debug("Found image in clipboard, running OCR...")
         ocr_text = ocr_image(image)
         if ocr_text:
             return (ocr_text, "ocr")
+        else:
+            logger.warning("OCR returned no text from image")
+
+    # No image - try auto-copy to get selected text
+    if auto_copy:
+        auto_copy_selection()
+
+    # Check for text
+    text = get_clipboard_text()
+    if text:
+        return (text, "text")
 
     return (None, "none")
 
@@ -131,27 +135,45 @@ def ocr_image(image) -> Optional[str]:
         import winocr
         import asyncio
 
+        logger.debug(f"OCR: Processing image {image.size[0]}x{image.size[1]}")
+
         # Convert to bytes for winocr
         import io
         buffer = io.BytesIO()
         image.save(buffer, format='PNG')
         image_bytes = buffer.getvalue()
+        logger.debug(f"OCR: Image converted to {len(image_bytes)} bytes")
 
         # Run Windows OCR
         async def run_ocr():
             result = await winocr.recognize_bytes(image_bytes, lang='en')
             return result.text if result else None
 
-        text = asyncio.run(run_ocr())
+        # Handle case where event loop might already exist
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None:
+            # Already in async context - create new loop in thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, run_ocr())
+                text = future.result(timeout=10)
+        else:
+            text = asyncio.run(run_ocr())
 
         if text and text.strip():
             logger.info(f"OCR extracted {len(text)} characters")
             return text.strip()
+
+        logger.debug("OCR: No text found in image")
         return None
 
-    except ImportError:
-        logger.warning("winocr not installed - OCR disabled")
+    except ImportError as e:
+        logger.warning(f"winocr not installed - OCR disabled: {e}")
         return None
     except Exception as e:
-        logger.error(f"OCR failed: {e}")
+        logger.error(f"OCR failed: {e}", exc_info=True)
         return None
