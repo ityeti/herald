@@ -68,7 +68,8 @@ Saved to `config/settings.json`:
   "hotkey_pause": "alt+p",
   "line_delay": 0,
   "read_mode": "lines",
-  "log_preview": true
+  "log_preview": true,
+  "auto_copy": true
 }
 ```
 
@@ -101,8 +102,14 @@ Saved to `config/settings.json`:
 ## Someday/Maybe
 
 - Tesseract OCR as alternative to Windows OCR (for better accuracy)
+- Continuous OCR mode (monitor a region, read when text changes - for PDFs/videos)
 - More hotkey options (speed, voice switching)
 - Configurable OCR region hotkey
+
+## Known Issues
+
+- If keyboard gets stuck (rare), close Herald to release hooks
+- Packaged exe in `dist/` is outdated - run from source with `Launch_Herald.bat`
 
 ## Related
 
