@@ -3,27 +3,56 @@ Herald Region Capture
 
 Provides screen region selection for OCR.
 Uses subprocess to run a separate Python script for tkinter (avoids thread issues).
+Supports multi-monitor setups.
 """
 
 import subprocess
 import sys
 import json
 import tempfile
-import os
+import ctypes
 from PIL import ImageGrab
 from typing import Optional, Tuple
 from loguru import logger
 from pathlib import Path
 
 
+def get_virtual_screen_bounds() -> Tuple[int, int, int, int]:
+    """
+    Get the bounding box of the entire virtual screen (all monitors).
+
+    Returns:
+        Tuple of (left, top, width, height) for the virtual screen.
+    """
+    try:
+        user32 = ctypes.windll.user32
+        # SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77
+        # SM_CXVIRTUALSCREEN = 78, SM_CYVIRTUALSCREEN = 79
+        left = user32.GetSystemMetrics(76)
+        top = user32.GetSystemMetrics(77)
+        width = user32.GetSystemMetrics(78)
+        height = user32.GetSystemMetrics(79)
+        return (left, top, width, height)
+    except Exception as e:
+        logger.error(f"Failed to get virtual screen bounds: {e}")
+        # Fallback to primary monitor
+        user32 = ctypes.windll.user32
+        return (0, 0, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
+
+
 # Standalone script that runs in a separate process
+# Takes virtual screen bounds as command line arguments
 SELECTOR_SCRIPT = '''
 import tkinter as tk
 import json
 import sys
 
 class RegionSelector:
-    def __init__(self):
+    def __init__(self, vscreen_left, vscreen_top, vscreen_width, vscreen_height):
+        self.vscreen_left = vscreen_left
+        self.vscreen_top = vscreen_top
+        self.vscreen_width = vscreen_width
+        self.vscreen_height = vscreen_height
         self.start_x = 0
         self.start_y = 0
         self.end_x = 0
@@ -33,7 +62,10 @@ class RegionSelector:
 
     def run(self):
         self.root = tk.Tk()
-        self.root.attributes('-fullscreen', True)
+
+        # Position window to cover entire virtual screen (all monitors)
+        self.root.overrideredirect(True)  # Remove window decorations
+        self.root.geometry(f"{self.vscreen_width}x{self.vscreen_height}+{self.vscreen_left}+{self.vscreen_top}")
         self.root.attributes('-alpha', 0.3)
         self.root.attributes('-topmost', True)
         self.root.configure(bg='gray')
@@ -59,10 +91,11 @@ class RegionSelector:
         self.root.mainloop()
 
         if self.selection_made:
-            x1 = min(self.start_x, self.end_x)
-            y1 = min(self.start_y, self.end_y)
-            x2 = max(self.start_x, self.end_x)
-            y2 = max(self.start_y, self.end_y)
+            # Convert canvas coordinates to screen coordinates
+            x1 = min(self.start_x, self.end_x) + self.vscreen_left
+            y1 = min(self.start_y, self.end_y) + self.vscreen_top
+            x2 = max(self.start_x, self.end_x) + self.vscreen_left
+            y2 = max(self.start_y, self.end_y) + self.vscreen_top
             if (x2 - x1) >= 10 and (y2 - y1) >= 10:
                 print(json.dumps({"region": [x1, y1, x2, y2]}))
                 return
@@ -97,7 +130,21 @@ class RegionSelector:
         self.root.destroy()
 
 if __name__ == "__main__":
-    RegionSelector().run()
+    # Parse virtual screen bounds from command line
+    if len(sys.argv) >= 5:
+        left = int(sys.argv[1])
+        top = int(sys.argv[2])
+        width = int(sys.argv[3])
+        height = int(sys.argv[4])
+    else:
+        # Fallback - just use fullscreen on primary
+        import ctypes
+        user32 = ctypes.windll.user32
+        left, top = 0, 0
+        width = user32.GetSystemMetrics(0)
+        height = user32.GetSystemMetrics(1)
+
+    RegionSelector(left, top, width, height).run()
 '''
 
 
@@ -105,18 +152,25 @@ def select_region() -> Optional[Tuple[int, int, int, int]]:
     """
     Show fullscreen overlay and let user draw a selection box.
     Runs in a separate process to avoid tkinter threading issues.
+    Supports multi-monitor setups.
 
     Returns:
         Tuple of (x1, y1, x2, y2) for the selected region, or None if cancelled.
     """
     try:
+        # Get virtual screen bounds (all monitors)
+        vscreen = get_virtual_screen_bounds()
+        logger.debug(f"Virtual screen: left={vscreen[0]}, top={vscreen[1]}, "
+                     f"width={vscreen[2]}, height={vscreen[3]}")
+
         # Write the selector script to a temp file
         script_path = Path(tempfile.gettempdir()) / "herald_region_selector.py"
         script_path.write_text(SELECTOR_SCRIPT)
 
-        # Run in subprocess using the same Python interpreter
+        # Run in subprocess with virtual screen bounds as arguments
         result = subprocess.run(
-            [sys.executable, str(script_path)],
+            [sys.executable, str(script_path),
+             str(vscreen[0]), str(vscreen[1]), str(vscreen[2]), str(vscreen[3])],
             capture_output=True,
             text=True,
             timeout=120,  # 2 minute timeout
@@ -153,14 +207,15 @@ def capture_region(region: Tuple[int, int, int, int]):
     Capture a screenshot of the specified region.
 
     Args:
-        region: Tuple of (x1, y1, x2, y2) coordinates.
+        region: Tuple of (x1, y1, x2, y2) screen coordinates.
 
     Returns:
         PIL Image of the captured region.
     """
     try:
         # ImageGrab.grab takes bbox as (left, top, right, bottom)
-        image = ImageGrab.grab(bbox=region)
+        # It handles multi-monitor setups and negative coordinates
+        image = ImageGrab.grab(bbox=region, all_screens=True)
         return image
     except Exception as e:
         logger.error(f"Screenshot failed: {e}")
@@ -187,7 +242,8 @@ def select_and_capture():
 
 # Self-test
 if __name__ == "__main__":
-    print("Testing region capture...")
+    print("Testing region capture (multi-monitor)...")
+    print(f"Virtual screen bounds: {get_virtual_screen_bounds()}")
     print("Select a region with your mouse. Press Escape to cancel.")
 
     image = select_and_capture()
