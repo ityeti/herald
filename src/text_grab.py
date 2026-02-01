@@ -135,18 +135,19 @@ def ocr_image(image) -> Optional[str]:
         import winocr
         import asyncio
 
-        logger.debug(f"OCR: Processing image {image.size[0]}x{image.size[1]}")
+        width, height = image.size
+        logger.debug(f"OCR: Processing image {width}x{height}")
 
-        # Convert to bytes for winocr
-        import io
-        buffer = io.BytesIO()
-        image.save(buffer, format='PNG')
-        image_bytes = buffer.getvalue()
-        logger.debug(f"OCR: Image converted to {len(image_bytes)} bytes")
+        # Convert to raw bytes (RGBA) for winocr
+        # winocr.recognize_bytes expects raw pixel data, not PNG
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+        image_bytes = image.tobytes()
+        logger.debug(f"OCR: Image converted to {len(image_bytes)} bytes (RGBA)")
 
         # Run Windows OCR
         async def run_ocr():
-            result = await winocr.recognize_bytes(image_bytes, lang='en')
+            result = await winocr.recognize_bytes(image_bytes, width, height, lang='en')
             return result.text if result else None
 
         # Handle case where event loop might already exist
