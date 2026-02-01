@@ -115,8 +115,9 @@ class Pyttsx3Engine(BaseTTSEngine):
     def _get_engine(self):
         if self._engine is None:
             self._engine = self._pyttsx3.init()
-            self._engine.setProperty('rate', self._rate)
             self._apply_voice()
+            # Set rate AFTER voice - some SAPI voices reset rate when changed
+            self._engine.setProperty('rate', self._rate)
         return self._engine
 
     def _apply_voice(self):
@@ -197,6 +198,8 @@ class Pyttsx3Engine(BaseTTSEngine):
         set_setting("voice", self._voice_name)
         if self._engine:
             self._apply_voice()
+            # Reapply rate after voice change - SAPI voices can reset rate
+            self._engine.setProperty('rate', self._rate)
 
     def get_available_voices(self) -> list[str]:
         return self.VOICES.copy()

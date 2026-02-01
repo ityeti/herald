@@ -40,10 +40,23 @@ A text-to-speech utility for Windows that reads clipboard text aloud using high-
 ## Requirements
 
 - **OS**: Windows 10/11
-- **Python**: 3.10, 3.11, or 3.12
 - **Internet**: Required for neural voices (offline voices work without)
 
-## Quick Start
+## Installation Options
+
+### Option 1: Standalone Executable (Easiest)
+
+Download the pre-built executable - no Python installation required:
+
+1. Go to [Releases](https://github.com/ityeti/herald/releases)
+2. Download `Herald.zip` from the latest release
+3. Extract and run `Herald.exe` as Administrator
+
+The executable is portable and includes everything needed.
+
+### Option 2: Run from Source (Python)
+
+Requires Python 3.10, 3.11, or 3.12.
 
 ### 1. Install Python
 
