@@ -54,6 +54,16 @@ from tray_app import TrayApp
 from utils import setup_logging
 
 
+def safe_callback(func):
+    """Wrap hotkey callback to catch exceptions and prevent hook issues."""
+    def wrapper():
+        try:
+            func()
+        except Exception as e:
+            logger.error(f"Error in hotkey callback {func.__name__}: {e}", exc_info=True)
+    return wrapper
+
+
 def ensure_single_instance():
     """Ensure only one instance of Herald is running.
 
@@ -617,15 +627,17 @@ def main():
     _tray_app.start_async()
 
     # Register hotkeys
-    keyboard.add_hotkey(_current_speak_hotkey, on_speak_hotkey, suppress=True)
-    keyboard.add_hotkey(_current_pause_hotkey, on_pause_resume, suppress=True)
-    keyboard.add_hotkey(STOP_HOTKEY, on_stop_hotkey, suppress=False)
-    keyboard.add_hotkey(SPEED_UP_HOTKEY, on_speed_up, suppress=True)
-    keyboard.add_hotkey(SPEED_DOWN_HOTKEY, on_speed_down, suppress=True)
-    keyboard.add_hotkey(NEXT_LINE_HOTKEY, on_next_line, suppress=True)
-    keyboard.add_hotkey(PREV_LINE_HOTKEY, on_prev_line, suppress=True)
-    keyboard.add_hotkey(OCR_REGION_HOTKEY, on_ocr_region, suppress=True)
-    keyboard.add_hotkey(QUIT_HOTKEY, on_quit, suppress=True)
+    # Using suppress=False to avoid interfering with other Windows hotkeys
+    # Only suppress keys that could cause unwanted input (like typing brackets)
+    keyboard.add_hotkey(_current_speak_hotkey, safe_callback(on_speak_hotkey), suppress=False)
+    keyboard.add_hotkey(_current_pause_hotkey, safe_callback(on_pause_resume), suppress=False)
+    keyboard.add_hotkey(STOP_HOTKEY, safe_callback(on_stop_hotkey), suppress=False)
+    keyboard.add_hotkey(SPEED_UP_HOTKEY, safe_callback(on_speed_up), suppress=True)  # Suppress [ to avoid typing
+    keyboard.add_hotkey(SPEED_DOWN_HOTKEY, safe_callback(on_speed_down), suppress=True)  # Suppress ] to avoid typing
+    keyboard.add_hotkey(NEXT_LINE_HOTKEY, safe_callback(on_next_line), suppress=False)
+    keyboard.add_hotkey(PREV_LINE_HOTKEY, safe_callback(on_prev_line), suppress=False)
+    keyboard.add_hotkey(OCR_REGION_HOTKEY, safe_callback(on_ocr_region), suppress=False)
+    keyboard.add_hotkey(QUIT_HOTKEY, safe_callback(on_quit), suppress=False)
 
     try:
         # Main loop - poll for quit and update tray state
@@ -634,14 +646,22 @@ def main():
             time.sleep(0.1)
     except KeyboardInterrupt:
         logger.info("Ctrl+C - exiting")
+    except Exception as e:
+        logger.error(f"Unexpected error in main loop: {e}", exc_info=True)
+    finally:
+        # Clean shutdown - ensure keyboard hooks are always released
+        logger.info("Cleaning up...")
+        try:
+            keyboard.unhook_all()
+        except Exception as e:
+            logger.error(f"Error unhooking keyboard: {e}")
 
-    # Clean shutdown
-    engine.stop()
-    if _tray_app:
-        _tray_app.stop()
-    keyboard.unhook_all()
-    logger.info("Herald stopped")
-    sys.exit(0)
+        engine.stop()
+        if _tray_app:
+            _tray_app.stop()
+
+        logger.info("Herald stopped")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
