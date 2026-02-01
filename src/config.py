@@ -23,7 +23,8 @@ SPEED_UP_HOTKEY = "alt+]"     # Increase rate
 SPEED_DOWN_HOTKEY = "alt+["   # Decrease rate
 NEXT_LINE_HOTKEY = "alt+n"    # Skip to next line
 PREV_LINE_HOTKEY = "alt+b"    # Go back to previous line
-OCR_REGION_HOTKEY = "alt+o"   # OCR region capture
+OCR_REGION_HOTKEY = "alt+o"   # OCR region capture (one-time)
+MONITOR_REGION_HOTKEY = "alt+m"  # Toggle persistent OCR region
 QUIT_HOTKEY = "alt+q"         # Exit application
 
 # TTS defaults
@@ -41,6 +42,9 @@ DEFAULT_LOG_PREVIEW = True  # Show text preview in console/logs
 
 # Auto-copy
 DEFAULT_AUTO_COPY = True  # Auto Ctrl+C before reading (disable for terminals)
+
+# OCR settings
+DEFAULT_OCR_TO_CLIPBOARD = True  # Copy OCR'd text to clipboard
 
 # Voice defaults
 # Edge voices: aria, guy, jenny, christopher (online, neural)
@@ -67,6 +71,7 @@ DEFAULT_SETTINGS = {
     "read_mode": DEFAULT_READ_MODE,
     "log_preview": DEFAULT_LOG_PREVIEW,
     "auto_copy": DEFAULT_AUTO_COPY,
+    "ocr_to_clipboard": DEFAULT_OCR_TO_CLIPBOARD,
 }
 
 

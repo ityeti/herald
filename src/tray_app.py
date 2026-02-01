@@ -84,6 +84,7 @@ class TrayApp:
         on_read_mode_change: Optional[Callable[[str], None]] = None,
         on_log_preview_change: Optional[Callable[[bool], None]] = None,
         on_auto_copy_change: Optional[Callable[[bool], None]] = None,
+        on_ocr_to_clipboard_change: Optional[Callable[[bool], None]] = None,
         on_pause_toggle: Optional[Callable[[], None]] = None,
         on_console_toggle: Optional[Callable[[bool], None]] = None,
         on_speak_hotkey_change: Optional[Callable[[str], None]] = None,
@@ -95,6 +96,7 @@ class TrayApp:
         current_read_mode: str = "lines",
         current_log_preview: bool = True,
         current_auto_copy: bool = True,
+        current_ocr_to_clipboard: bool = True,
         current_speak_hotkey: str = "alt+s",
         current_pause_hotkey: str = "alt+p",
         console_visible: bool = True,
@@ -105,6 +107,7 @@ class TrayApp:
         self.on_read_mode_change = on_read_mode_change
         self.on_log_preview_change = on_log_preview_change
         self.on_auto_copy_change = on_auto_copy_change
+        self.on_ocr_to_clipboard_change = on_ocr_to_clipboard_change
         self.on_pause_toggle = on_pause_toggle
         self.on_console_toggle = on_console_toggle
         self.on_speak_hotkey_change = on_speak_hotkey_change
@@ -117,6 +120,7 @@ class TrayApp:
         self.current_read_mode = current_read_mode
         self.current_log_preview = current_log_preview
         self.current_auto_copy = current_auto_copy
+        self.current_ocr_to_clipboard = current_ocr_to_clipboard
         self.current_speak_hotkey = current_speak_hotkey
         self.current_pause_hotkey = current_pause_hotkey
         self.console_visible = console_visible
@@ -320,9 +324,14 @@ class TrayApp:
                 checked=lambda item: self.current_log_preview
             ),
             pystray.MenuItem(
-                "Auto-Copy Selection",
+                "Grab & Speak Selection",
                 self._on_auto_copy_toggle,
                 checked=lambda item: self.current_auto_copy
+            ),
+            pystray.MenuItem(
+                "Copy OCR to Clipboard",
+                self._on_ocr_to_clipboard_toggle,
+                checked=lambda item: self.current_ocr_to_clipboard
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", self._on_quit)
@@ -386,6 +395,14 @@ class TrayApp:
         logger.info(f"Auto-copy: {self.current_auto_copy}")
         if self.on_auto_copy_change:
             self.on_auto_copy_change(self.current_auto_copy)
+        self._refresh_menu()
+
+    def _on_ocr_to_clipboard_toggle(self):
+        """Toggle OCR to clipboard on/off."""
+        self.current_ocr_to_clipboard = not self.current_ocr_to_clipboard
+        logger.info(f"OCR to clipboard: {self.current_ocr_to_clipboard}")
+        if self.on_ocr_to_clipboard_change:
+            self.on_ocr_to_clipboard_change(self.current_ocr_to_clipboard)
         self._refresh_menu()
 
     def _make_console_callback(self, visible: bool):

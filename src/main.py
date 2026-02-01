@@ -24,6 +24,7 @@ Requires admin privileges on Windows for global hotkeys.
 import sys
 import time
 import ctypes
+import pyperclip
 
 # Enable DPI awareness BEFORE any GUI operations
 # This ensures correct screen coordinates on high-DPI displays
@@ -42,14 +43,16 @@ from typing import Optional
 
 from config import (
     STOP_HOTKEY, SPEED_UP_HOTKEY, SPEED_DOWN_HOTKEY, QUIT_HOTKEY,
-    NEXT_LINE_HOTKEY, PREV_LINE_HOTKEY, OCR_REGION_HOTKEY,
+    NEXT_LINE_HOTKEY, PREV_LINE_HOTKEY, OCR_REGION_HOTKEY, MONITOR_REGION_HOTKEY,
     RATE_STEP, MIN_RATE, MAX_RATE, load_settings, set_setting,
     DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY, DEFAULT_LINE_DELAY,
-    DEFAULT_READ_MODE, DEFAULT_LOG_PREVIEW, DEFAULT_AUTO_COPY
+    DEFAULT_READ_MODE, DEFAULT_LOG_PREVIEW, DEFAULT_AUTO_COPY,
+    DEFAULT_OCR_TO_CLIPBOARD
 )
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_content_to_speak, ocr_image
 from region_capture import select_and_capture
+from persistent_region import PersistentRegion, get_persistent_region, set_persistent_region
 from tray_app import TrayApp
 from utils import setup_logging
 
@@ -101,14 +104,29 @@ _line_delay = DEFAULT_LINE_DELAY  # Delay in ms between lines
 _read_mode = DEFAULT_READ_MODE  # "lines" or "continuous"
 _log_preview = DEFAULT_LOG_PREVIEW  # Show text in console/logs
 _auto_copy = DEFAULT_AUTO_COPY  # Auto Ctrl+C before reading
+_ocr_to_clipboard = DEFAULT_OCR_TO_CLIPBOARD  # Copy OCR'd text to clipboard
+
+# Persistent region for continuous OCR
+_persistent_region: Optional[PersistentRegion] = None
 
 
 def on_speak_hotkey():
     """Called when the speak hotkey is pressed."""
     global _line_queue, _current_line_index
 
-    # Auto-copy selection and get content (text or OCR'd image)
-    text, source = get_content_to_speak(auto_copy=_auto_copy)
+    # Check if persistent region is active - use that instead
+    if _persistent_region and _persistent_region.is_active:
+        text = _persistent_region.read_now()
+        source = "ocr" if text else "none"
+        if text and _ocr_to_clipboard:
+            try:
+                pyperclip.copy(text)
+                logger.debug("Persistent region text copied to clipboard")
+            except Exception as e:
+                logger.warning(f"Failed to copy text to clipboard: {e}")
+    else:
+        # Auto-copy selection and get content (text or OCR'd image)
+        text, source = get_content_to_speak(auto_copy=_auto_copy)
 
     if not text:
         logger.warning("No text to speak (clipboard empty or OCR failed)")
@@ -116,6 +134,13 @@ def on_speak_hotkey():
 
     if source == "ocr":
         logger.info("Reading text from image (OCR)")
+        # Copy OCR'd text to clipboard if enabled
+        if _ocr_to_clipboard:
+            try:
+                pyperclip.copy(text)
+                logger.debug("OCR text copied to clipboard")
+            except Exception as e:
+                logger.warning(f"Failed to copy OCR text to clipboard: {e}")
 
     if _read_mode == "continuous":
         # Original behavior: speak all text as one block
@@ -157,6 +182,14 @@ def on_ocr_region():
 
     logger.info(f"OCR extracted {len(text)} characters")
 
+    # Copy OCR'd text to clipboard if enabled
+    if _ocr_to_clipboard:
+        try:
+            pyperclip.copy(text)
+            logger.debug("OCR text copied to clipboard")
+        except Exception as e:
+            logger.warning(f"Failed to copy OCR text to clipboard: {e}")
+
     if _read_mode == "continuous":
         _speak_continuous(text)
     else:
@@ -169,6 +202,61 @@ def on_ocr_region():
         _line_queue = lines
         _current_line_index = 0
         _speak_current_line()
+
+
+def on_monitor_region_toggle():
+    """Toggle persistent OCR region on/off (Alt+M)."""
+    global _persistent_region
+
+    if _persistent_region is None:
+        # Create instance with auto-read callback
+        _persistent_region = PersistentRegion(
+            on_text_detected=_on_auto_read_text,
+            poll_interval=2.5,
+            change_threshold=0.5
+        )
+        set_persistent_region(_persistent_region)
+
+    if _persistent_region.is_active:
+        _persistent_region.deactivate()
+        engine = get_engine()
+        engine.speak("Monitor region closed")
+        if _tray_app:
+            _tray_app.set_speaking(False)
+    else:
+        if _persistent_region.activate():
+            engine = get_engine()
+            engine.speak("Monitor region active. Press Alt S to read, or Alt M to close.")
+        else:
+            logger.info("Region selection cancelled")
+
+
+def _on_auto_read_text(text: str):
+    """Callback when auto-read detects new text."""
+    global _line_queue, _current_line_index
+
+    if not text:
+        return
+
+    logger.info(f"Auto-read triggered ({len(text)} chars)")
+
+    # Copy to clipboard if enabled
+    if _ocr_to_clipboard:
+        try:
+            pyperclip.copy(text)
+            logger.debug("Auto-read text copied to clipboard")
+        except Exception as e:
+            logger.warning(f"Failed to copy text to clipboard: {e}")
+
+    # Speak the text
+    if _read_mode == "continuous":
+        _speak_continuous(text)
+    else:
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        if lines:
+            _line_queue = lines
+            _current_line_index = 0
+            _speak_current_line()
 
 
 def _speak_continuous(text: str):
@@ -450,9 +538,22 @@ def on_auto_copy_change(enabled: bool):
     set_setting("auto_copy", enabled)
     engine = get_engine()
     if enabled:
-        engine.speak("Auto copy enabled")
+        engine.speak("Grab and speak enabled")
     else:
-        engine.speak("Auto copy disabled")
+        engine.speak("Grab and speak disabled")
+
+
+def on_ocr_to_clipboard_change(enabled: bool):
+    """Handle OCR to clipboard toggle from tray menu."""
+    global _ocr_to_clipboard
+    logger.info(f"OCR to clipboard: {'enabled' if enabled else 'disabled'}")
+    _ocr_to_clipboard = enabled
+    set_setting("ocr_to_clipboard", enabled)
+    engine = get_engine()
+    if enabled:
+        engine.speak("OCR to clipboard enabled")
+    else:
+        engine.speak("OCR to clipboard disabled")
 
 
 def on_console_toggle(visible: bool):
@@ -567,7 +668,7 @@ def update_tray_state():
 def main():
     """Main entry point."""
     global _tray_app, _current_speak_hotkey, _current_pause_hotkey
-    global _line_delay, _read_mode, _log_preview, _auto_copy
+    global _line_delay, _read_mode, _log_preview, _auto_copy, _ocr_to_clipboard
 
     # Ensure only one instance runs
     ensure_single_instance()
@@ -582,6 +683,7 @@ def main():
     _read_mode = settings.get("read_mode", DEFAULT_READ_MODE)
     _log_preview = settings.get("log_preview", DEFAULT_LOG_PREVIEW)
     _auto_copy = settings.get("auto_copy", DEFAULT_AUTO_COPY)
+    _ocr_to_clipboard = settings.get("ocr_to_clipboard", DEFAULT_OCR_TO_CLIPBOARD)
 
     logger.info("Herald started")
     logger.info(f"  Speak:      {_current_speak_hotkey}")
@@ -591,6 +693,7 @@ def main():
     logger.info(f"  Next line:  {NEXT_LINE_HOTKEY}")
     logger.info(f"  Prev line:  {PREV_LINE_HOTKEY}")
     logger.info(f"  OCR region: {OCR_REGION_HOTKEY}")
+    logger.info(f"  Monitor:    {MONITOR_REGION_HOTKEY}")
     logger.info(f"  Stop:       {STOP_HOTKEY}")
     logger.info(f"  Quit:       {QUIT_HOTKEY}")
     print()
@@ -609,6 +712,7 @@ def main():
         on_read_mode_change=on_read_mode_change,
         on_log_preview_change=on_log_preview_change,
         on_auto_copy_change=on_auto_copy_change,
+        on_ocr_to_clipboard_change=on_ocr_to_clipboard_change,
         on_pause_toggle=on_pause_resume,
         on_console_toggle=on_console_toggle,
         on_speak_hotkey_change=on_speak_hotkey_change,
@@ -620,6 +724,7 @@ def main():
         current_read_mode=_read_mode,
         current_log_preview=_log_preview,
         current_auto_copy=_auto_copy,
+        current_ocr_to_clipboard=_ocr_to_clipboard,
         current_speak_hotkey=_current_speak_hotkey,
         current_pause_hotkey=_current_pause_hotkey,
         console_visible=True,
@@ -637,6 +742,7 @@ def main():
     keyboard.add_hotkey(NEXT_LINE_HOTKEY, safe_callback(on_next_line), suppress=False)
     keyboard.add_hotkey(PREV_LINE_HOTKEY, safe_callback(on_prev_line), suppress=False)
     keyboard.add_hotkey(OCR_REGION_HOTKEY, safe_callback(on_ocr_region), suppress=False)
+    keyboard.add_hotkey(MONITOR_REGION_HOTKEY, safe_callback(on_monitor_region_toggle), suppress=False)
     keyboard.add_hotkey(QUIT_HOTKEY, safe_callback(on_quit), suppress=False)
 
     try:
@@ -651,6 +757,11 @@ def main():
     finally:
         # Clean shutdown - ensure keyboard hooks are always released
         logger.info("Cleaning up...")
+
+        # Stop persistent region if active
+        if _persistent_region and _persistent_region.is_active:
+            _persistent_region.deactivate()
+
         try:
             keyboard.unhook_all()
         except Exception as e:

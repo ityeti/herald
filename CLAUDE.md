@@ -12,7 +12,9 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 
 **Phase:** Feature-complete, ready for public release
 
-**GitHub:** https://github.com/ityeti/herald (currently private)
+**GitHub:** https://github.com/ityeti/herald (public)
+**Docs:** https://ityeti.com/herald/
+**Release:** [v0.1.0](https://github.com/ityeti/herald/releases/tag/v0.1.0)
 
 ## Tech Stack
 
@@ -47,7 +49,8 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 | Hotkey | Action | Configurable |
 |--------|--------|--------------|
 | Alt+S | Speak selection/clipboard (auto-copy, OCR images) | Yes (tray menu) |
-| Alt+O | OCR region capture (draw box on screen) | No |
+| Alt+O | OCR region capture (one-time) | No |
+| Alt+M | Toggle persistent OCR region (for PDFs/videos) | No |
 | Alt+P | Pause/resume | Yes (tray menu) |
 | Alt+N | Skip to next line | No |
 | Alt+B | Go back to previous line | No |
@@ -69,7 +72,8 @@ Saved to `config/settings.json`:
   "line_delay": 0,
   "read_mode": "lines",
   "log_preview": true,
-  "auto_copy": true
+  "auto_copy": true,
+  "ocr_to_clipboard": true
 }
 ```
 
@@ -92,19 +96,23 @@ Saved to `config/settings.json`:
 - [x] Auto-copy selection (just select text and press Alt+S)
 - [x] OCR for clipboard images (Win+Shift+S screenshots)
 - [x] OCR region capture mode (Alt+O to draw box and read)
+- [x] Copy OCR'd text to clipboard (toggle in tray menu)
+- [x] Persistent OCR region (Alt+M) for PDFs and videos
 
-## Next Steps (for public release)
+## Release Status
 
 - [x] Review code for sensitive info
 - [x] Test fresh install on clean system
-- [ ] Make repo public
+- [x] Make repo public
+- [x] v0.1.0 released with standalone exe
+- [x] SEO docs live at https://ityeti.com/herald/
 
 ## Someday/Maybe
 
 - Tesseract OCR as alternative to Windows OCR (for better accuracy)
-- Continuous OCR mode (monitor a region, read when text changes - for PDFs/videos)
+- Auto-read mode for persistent region (poll and read on text change)
 - More hotkey options (speed, voice switching)
-- Configurable OCR region hotkey
+- Configurable OCR hotkey
 
 ## Known Issues
 
