@@ -10,6 +10,11 @@ from typing import Callable, Optional
 from loguru import logger
 import threading
 
+from updater import (
+    get_version_string, get_update_info, check_for_updates_async,
+    open_releases_page, should_check_for_updates
+)
+
 
 class TrayApp:
     """System tray application for Herald TTS."""
@@ -134,6 +139,8 @@ class TrayApp:
         self.icon: Optional[pystray.Icon] = None
 
         self.is_generating = False
+        self.update_available = False
+        self.update_version = None
 
         # Create icons for different states
         self.icons = {
@@ -343,6 +350,26 @@ class TrayApp:
                 checked=lambda item: self.current_auto_read
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                self._get_about_label(),
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "Check for Updates",
+                        self._on_check_updates
+                    ),
+                    pystray.MenuItem(
+                        "Download Update" if self.update_available else "No Updates Available",
+                        self._on_download_update,
+                        enabled=self.update_available
+                    ),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(
+                        "GitHub Releases",
+                        self._on_open_releases
+                    ),
+                )
+            ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", self._on_quit)
         )
 
@@ -460,6 +487,51 @@ class TrayApp:
         if self.on_pause_toggle:
             self.on_pause_toggle()
 
+    def _get_about_label(self) -> str:
+        """Get the About menu label with version and update indicator."""
+        label = get_version_string()
+        if self.update_available and self.update_version:
+            label += f" (v{self.update_version} available!)"
+        return label
+
+    def _on_check_updates(self):
+        """Check for updates."""
+        logger.info("Checking for updates...")
+
+        def on_result(available, version, url):
+            self.update_available = available
+            self.update_version = version
+            if available:
+                logger.info(f"Update available: v{version}")
+            else:
+                logger.info("No updates available")
+            self._refresh_menu()
+
+        check_for_updates_async(callback=on_result, force=True)
+
+    def _on_download_update(self):
+        """Open the download page for the update."""
+        if self.update_available:
+            logger.info("Opening download page...")
+            open_releases_page()
+
+    def _on_open_releases(self):
+        """Open the GitHub releases page."""
+        logger.info("Opening releases page...")
+        open_releases_page()
+
+    def check_for_updates_on_startup(self):
+        """Check for updates silently on startup if enough time has passed."""
+        if should_check_for_updates():
+            def on_result(available, version, url):
+                self.update_available = available
+                self.update_version = version
+                if available:
+                    logger.info(f"Update available: v{version}")
+                self._refresh_menu()
+
+            check_for_updates_async(callback=on_result)
+
     def _on_quit(self):
         """Handle quit."""
         logger.info("Quit from tray")
@@ -557,6 +629,8 @@ class TrayApp:
 
         if self.icon:
             logger.info("Tray app started")
+            # Check for updates on startup
+            self.check_for_updates_on_startup()
         else:
             logger.warning("Tray app may not have started")
 

@@ -1,0 +1,12 @@
+# Herald Development/Testing Dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Core requirements
+-r requirements.txt
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Version comparison for update checker
+packaging>=23.0

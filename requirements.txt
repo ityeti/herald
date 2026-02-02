@@ -23,3 +23,6 @@ Pillow>=10.0.0
 
 # OCR (Windows built-in)
 winocr>=0.0.5
+
+# Version comparison for update checker
+packaging>=23.0
