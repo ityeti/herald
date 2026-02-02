@@ -111,10 +111,15 @@ Saved to `config/settings.json`:
 
 ## Someday/Maybe
 
-- Tesseract OCR as alternative to Windows OCR (for better accuracy)
-- Configurable auto-read interval and threshold (currently 2.5s / 50%)
-- More hotkey options (speed, voice switching)
-- Configurable OCR hotkey
+- Configurable auto-read settings via tray menu (interval + text change threshold, currently hardcoded 2.5s / 50%)
+- Voice profiles — save/load voice+speed combos for quick switching (e.g., "Reading" = Aria 400wpm, "Skim" = Guy 700wpm)
+- MP3 export — save TTS output as audio file (personal use only due to edge-tts voice licensing)
+- Position memory for ebook-style reading experience (low priority)
+- Unified desktop app with Whisper-typer — see `c:\dev\dev-oversight\.claude\docs\someday-maybe.md` for details
+
+## Backlog
+
+- [ ] Add "OCR" label back to region selection window (upper left corner) for clarity
 
 ## Known Issues
 
