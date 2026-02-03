@@ -42,7 +42,23 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 | `src/region_capture.py` | Screen region selection overlay |
 | `src/tray_app.py` | System tray icon and menu |
 | `src/config.py` | Settings management |
+| `src/updater.py` | GitHub releases update checker |
 | `config/settings.json` | User preferences (auto-created) |
+
+## Testing
+
+```batch
+:: Run all tests
+test_runner.bat
+
+:: Run only unit tests (fast)
+test_runner.bat --unit
+
+:: Run TTS generation tests
+test_runner.bat --synthetic
+```
+
+Cross-project TTS→STT validation tests are in `dev-oversight/tests/`.
 
 ## Default Hotkeys
 
