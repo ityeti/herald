@@ -1,6 +1,6 @@
 # Herald
 
-Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer/). Press a hotkey, hear selected text read aloud.
+Text-to-speech utility for Windows — the inverse of [whisper-typer](../whisper-typer/). Press a hotkey, hear selected text read aloud.
 
 ## Session Start
 
@@ -10,8 +10,7 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 
 ## Current Status
 
-**Phase:** Feature-complete, ready for public release
-
+**Phase:** Feature-complete, public release
 **GitHub:** https://github.com/ityeti/herald (public)
 **Docs:** https://ityeti.com/herald/
 **Release:** [v0.2.0](https://github.com/ityeti/herald/releases/tag/v0.2.0)
@@ -27,22 +26,17 @@ Text-to-speech utility for Windows — the inverse of [whisper](../whisper-typer
 | Hotkeys | keyboard | Global hotkeys, admin required |
 | System tray | pystray + Pillow | Voice/speed/hotkey controls |
 | Clipboard | pyperclip | Text grabbing |
-| Logging | loguru | Rotating file logs |
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `Launch_Herald.bat` | Main launcher (UAC auto-elevate) |
-| `Autostart_Enable.bat` | Add to Windows startup |
-| `Autostart_Disable.bat` | Remove from startup |
 | `src/main.py` | Entry point, hotkey registration |
 | `src/tts_engine.py` | TTS abstraction (edge-tts + pyttsx3) |
 | `src/text_grab.py` | Clipboard handling + OCR |
 | `src/region_capture.py` | Screen region selection overlay |
 | `src/tray_app.py` | System tray icon and menu |
-| `src/config.py` | Settings management |
-| `src/updater.py` | GitHub releases update checker |
 | `config/settings.json` | User preferences (auto-created) |
 
 ## Testing
@@ -53,27 +47,24 @@ test_runner.bat
 
 :: Run only unit tests (fast)
 test_runner.bat --unit
-
-:: Run TTS generation tests
-test_runner.bat --synthetic
 ```
 
 Cross-project TTS→STT validation tests are in `dev-oversight/tests/`.
 
 ## Default Hotkeys
 
-| Hotkey | Action | Configurable |
-|--------|--------|--------------|
-| Alt+S | Speak selection/clipboard (auto-copy, OCR images) | Yes (tray menu) |
-| Alt+O | OCR region capture (one-time) | No |
-| Alt+M | Toggle persistent OCR region (for PDFs/videos) | No |
-| Alt+P | Pause/resume | Yes (tray menu) |
-| Alt+N | Skip to next line | No |
-| Alt+B | Go back to previous line | No |
-| Alt+] | Speed up | No |
-| Alt+[ | Slow down | No |
-| Escape | Stop | No |
-| Alt+Q | Quit | No |
+| Hotkey | Action |
+|--------|--------|
+| Alt+S | Speak selection/clipboard (auto-copy, OCR images) |
+| Alt+O | OCR region capture (one-time) |
+| Alt+M | Toggle persistent OCR region (for PDFs/videos) |
+| Alt+P | Pause/resume |
+| Alt+N | Skip to next line |
+| Alt+B | Go back to previous line |
+| Alt+] | Speed up |
+| Alt+[ | Slow down |
+| Escape | Stop |
+| Alt+Q | Quit |
 
 ## Settings
 
@@ -85,64 +76,21 @@ Saved to `config/settings.json`:
   "rate": 500,
   "hotkey_speak": "alt+s",
   "hotkey_pause": "alt+p",
-  "line_delay": 0,
-  "read_mode": "lines",
-  "log_preview": true,
   "auto_copy": true,
-  "ocr_to_clipboard": true,
   "auto_read": false
 }
 ```
 
-## Completed Features
+## Additional Documentation
 
-- [x] Neural voices via edge-tts (Aria, Jenny, Guy, Christopher)
-- [x] Offline fallback via pyttsx3 (Zira, David)
-- [x] Speed adjustment (150-900 wpm online, up to 1500 wpm offline)
-- [x] Pause/resume (edge-tts only)
-- [x] System tray with full controls
-- [x] Configurable hotkeys (speak, pause)
-- [x] Settings persistence
-- [x] Auto-start scripts
-- [x] Console show/hide
-- [x] Visual feedback (tray icon states: idle/generating/speaking/paused)
-- [x] README documentation
-- [x] Line-by-line navigation (Alt+N/B to skip/back)
-- [x] Prefetch next line while current plays (edge-tts)
-- [x] Configurable delay between lines (tray menu)
-- [x] Auto-copy selection (just select text and press Alt+S)
-- [x] OCR for clipboard images (Win+Shift+S screenshots)
-- [x] OCR region capture mode (Alt+O to draw box and read)
-- [x] Copy OCR'd text to clipboard (toggle in tray menu)
-- [x] Persistent OCR region (Alt+M) for PDFs and videos
-- [x] Auto-read mode (polls region, reads when text changes 50%+)
-
-## Release Status
-
-- [x] Review code for sensitive info
-- [x] Test fresh install on clean system
-- [x] Make repo public
-- [x] v0.1.0 released with standalone exe
-- [x] SEO docs live at https://ityeti.com/herald/
-
-## Someday/Maybe
-
-- Configurable auto-read settings via tray menu (interval + text change threshold, currently hardcoded 2.5s / 50%)
-- Voice profiles — save/load voice+speed combos for quick switching (e.g., "Reading" = Aria 400wpm, "Skim" = Guy 700wpm)
-- MP3 export — save TTS output as audio file (personal use only due to edge-tts voice licensing)
-- Position memory for ebook-style reading experience (low priority)
-- Unified desktop app with Whisper-typer — see `c:\dev\dev-oversight\.claude\docs\someday-maybe.md` for details
-
-## Backlog
-
-- [ ] Add "OCR" label back to region selection window (upper left corner) for clarity
-
-## Known Issues
-
-- If keyboard gets stuck (rare), close Herald to release hooks
-- **pygame pkg_resources warning**: Pygame uses deprecated setuptools API internally. Suppressed in main.py with warning filter. Will be fixed when pygame updates to importlib.resources. See: https://github.com/pygame/pygame/issues
+| Topic | File | When to Read |
+|-------|------|--------------|
+| Architecture | `.claude/docs/architecture.md` | Understanding component design |
+| TTS Options | `.claude/docs/tts-options.md` | TTS engine research and comparisons |
+| Roadmap | `.claude/docs/roadmap.md` | Completed features, backlog, someday/maybe |
 
 ## Related
 
 - [whisper-typer](../whisper-typer/) — Voice-to-text (input), herald is the inverse (output)
+- [voxbox](../voxbox/) — Unified app combining both
 - [dev-oversight](../dev-oversight/) — Project oversight and tracking
