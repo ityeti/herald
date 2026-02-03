@@ -232,6 +232,9 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._file_counter = 0  # Unique filename counter to avoid race conditions
         self._stop_requested = False  # Signal to stop current generation
 
+        # Thread lock for pygame mixer operations (pygame is not thread-safe)
+        self._mixer_lock = threading.Lock()
+
         # Prefetch cache: text_hash -> audio_file_path
         self._prefetch_cache: dict[str, str] = {}
         self._prefetch_thread: threading.Thread | None = None
@@ -341,12 +344,26 @@ class EdgeTTSEngine(BaseTTSEngine):
                 self._generating = False
                 self._speaking = True
 
-                # Play the audio
-                self._pygame.mixer.music.load(self._audio_file)
-                self._pygame.mixer.music.play()
+                # Play the audio (with lock for thread safety)
+                with self._mixer_lock:
+                    if self._stop_requested:
+                        return
+                    try:
+                        self._pygame.mixer.music.load(self._audio_file)
+                        self._pygame.mixer.music.play()
+                    except Exception as e:
+                        logger.error(f"Failed to play audio: {e}")
+                        return
 
                 # Wait for playback to complete
-                while self._pygame.mixer.music.get_busy() or self._paused:
+                while True:
+                    with self._mixer_lock:
+                        try:
+                            busy = self._pygame.mixer.music.get_busy()
+                        except Exception:
+                            busy = False
+                    if not busy and not self._paused:
+                        break
                     if not self._speaking:
                         break
                     self._pygame.time.wait(100)
@@ -414,13 +431,26 @@ class EdgeTTSEngine(BaseTTSEngine):
 
     def _cleanup_audio(self):
         """Clean up current audio file."""
-        try:
-            if self._audio_file and os.path.exists(self._audio_file):
-                self._pygame.mixer.music.unload()
-                os.remove(self._audio_file)
-                self._audio_file = None
-        except Exception:
-            pass
+        with self._mixer_lock:
+            try:
+                if self._audio_file and os.path.exists(self._audio_file):
+                    try:
+                        self._pygame.mixer.music.stop()
+                    except Exception:
+                        pass
+                    try:
+                        self._pygame.mixer.music.unload()
+                    except Exception:
+                        pass
+                    # Small delay to ensure file handle is released
+                    self._pygame.time.wait(50)
+                    try:
+                        os.remove(self._audio_file)
+                    except Exception:
+                        pass
+                    self._audio_file = None
+            except Exception as e:
+                logger.debug(f"Cleanup error (safe to ignore): {e}")
 
     @property
     def is_generating(self) -> bool:
@@ -432,21 +462,30 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._generating = False
         self._speaking = False
         self._paused = False
-        try:
-            self._pygame.mixer.music.stop()
-        except Exception:
-            pass
+        with self._mixer_lock:
+            try:
+                self._pygame.mixer.music.stop()
+            except Exception:
+                pass
         self._cleanup_audio()
 
     def pause(self) -> None:
         if self._speaking and not self._paused:
-            self._pygame.mixer.music.pause()
+            with self._mixer_lock:
+                try:
+                    self._pygame.mixer.music.pause()
+                except Exception:
+                    pass
             self._paused = True
             logger.debug("Paused")
 
     def resume(self) -> None:
         if self._paused:
-            self._pygame.mixer.music.unpause()
+            with self._mixer_lock:
+                try:
+                    self._pygame.mixer.music.unpause()
+                except Exception:
+                    pass
             self._paused = False
             logger.debug("Resumed")
 
