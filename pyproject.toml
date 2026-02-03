@@ -1,0 +1,52 @@
+[tool.ruff]
+# Target Python 3.12
+target-version = "py312"
+
+# Check src/ directory
+src = ["src"]
+
+# Line length matches most editors
+line-length = 120
+
+[tool.ruff.lint]
+# Rule sets:
+# E, F = pyflakes + pycodestyle (standard errors)
+# B = flake8-bugbear (likely bugs)
+# S = Bandit (security issues)
+# SIM = flake8-simplify (simpler code = smaller attack surface)
+# UP = pyupgrade (modern Python patterns)
+select = ["E", "F", "B", "S", "SIM", "UP"]
+
+# Ignore specific rules
+ignore = [
+    "S101",   # Allow assert statements (used in tests)
+    "S311",   # Allow random module (not used for crypto here)
+    "E501",   # Line too long (let formatter handle)
+    "SIM102", # Allow nested if statements (sometimes clearer)
+    "SIM105", # Allow try-except-pass (contextlib.suppress not always clearer)
+    "SIM108", # Allow if-else blocks (ternary not always clearer)
+]
+
+# Per-file ignores
+[tool.ruff.lint.per-file-ignores]
+# Tests can use assert, magic values, etc.
+"tests/**" = ["S101", "S105", "S106"]
+"test_*.py" = ["S101", "S105", "S106"]
+# main.py: imports after admin check (early exit pattern)
+"src/main.py" = ["E402"]
+# updater.py: URL opens expected for checking GitHub releases
+"src/updater.py" = ["S310"]
+# tts_engine.py: MD5 used for cache keys (not security), subprocess for audio
+"src/tts_engine.py" = ["S324"]
+# region_capture.py, persistent_region.py: subprocess for screenshots
+"src/region_capture.py" = ["S603"]
+"src/persistent_region.py" = ["S603", "E722"]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

@@ -12,7 +12,6 @@ import json
 import tempfile
 import ctypes
 from PIL import ImageGrab
-from typing import Optional, Tuple
 from loguru import logger
 from pathlib import Path
 
@@ -22,7 +21,7 @@ def is_packaged() -> bool:
     return getattr(sys, 'frozen', False)
 
 
-def get_helper_path(helper_name: str) -> Optional[Path]:
+def get_helper_path(helper_name: str) -> Path | None:
     """
     Get path to a helper executable when running packaged.
 
@@ -50,7 +49,7 @@ def get_helper_path(helper_name: str) -> Optional[Path]:
     return None
 
 
-def get_virtual_screen_bounds() -> Tuple[int, int, int, int]:
+def get_virtual_screen_bounds() -> tuple[int, int, int, int]:
     """
     Get the bounding box of the entire virtual screen (all monitors).
 
@@ -200,7 +199,7 @@ if __name__ == "__main__":
 '''
 
 
-def select_region() -> Optional[Tuple[int, int, int, int]]:
+def select_region() -> tuple[int, int, int, int] | None:
     """
     Show fullscreen overlay and let user draw a selection box.
     Runs in a separate process to avoid tkinter threading issues.
@@ -264,7 +263,7 @@ def select_region() -> Optional[Tuple[int, int, int, int]]:
         return None
 
 
-def capture_region(region: Tuple[int, int, int, int]):
+def capture_region(region: tuple[int, int, int, int]):
     """
     Capture a screenshot of the specified region.
 

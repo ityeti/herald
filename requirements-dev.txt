@@ -8,5 +8,12 @@
 pytest>=7.4.0
 pytest-cov>=4.1.0
 
+# Linting & formatting
+ruff>=0.9.0
+
+# Pre-commit hooks
+pre-commit>=4.0.0
+detect-secrets>=1.5.0
+
 # Version comparison for update checker
 packaging>=23.0

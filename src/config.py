@@ -6,7 +6,6 @@ Manages settings and user preferences.
 
 import json
 from pathlib import Path
-from typing import Optional
 
 # Project paths
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -85,14 +84,14 @@ def load_settings() -> dict:
 
     if SETTINGS_FILE.exists():
         try:
-            with open(SETTINGS_FILE, "r") as f:
+            with open(SETTINGS_FILE) as f:
                 settings = json.load(f)
                 # Merge with defaults for any missing keys
                 for key, value in DEFAULT_SETTINGS.items():
                     if key not in settings:
                         settings[key] = value
                 return settings
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
 
     # Create default settings file

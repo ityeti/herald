@@ -8,11 +8,10 @@ Supports auto-copy (Ctrl+C simulation) and OCR for images.
 import time
 import pyperclip
 import keyboard
-from typing import Optional, Tuple
 from loguru import logger
 
 
-def get_clipboard_text() -> Optional[str]:
+def get_clipboard_text() -> str | None:
     """
     Get text from the system clipboard.
 
@@ -77,7 +76,7 @@ def auto_copy_selection() -> bool:
         return False
 
 
-def get_text_to_speak(auto_copy: bool = True) -> Optional[str]:
+def get_text_to_speak(auto_copy: bool = True) -> str | None:
     """
     Get the text that should be spoken.
 
@@ -96,7 +95,7 @@ def get_text_to_speak(auto_copy: bool = True) -> Optional[str]:
     return get_clipboard_text()
 
 
-def get_content_to_speak(auto_copy: bool = True) -> Tuple[Optional[str], str]:
+def get_content_to_speak(auto_copy: bool = True) -> tuple[str | None, str]:
     """
     Get content to speak - either text or OCR'd image.
 
@@ -128,7 +127,7 @@ def get_content_to_speak(auto_copy: bool = True) -> Tuple[Optional[str], str]:
     return (None, "none")
 
 
-def ocr_image(image) -> Optional[str]:
+def ocr_image(image) -> str | None:
     """
     Run OCR on a PIL Image using Windows OCR.
 

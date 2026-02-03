@@ -9,18 +9,15 @@ Provides a persistent screen region with visible border for continuous OCR.
 
 import subprocess
 import sys
-import json
 import tempfile
 import threading
-import time
-import ctypes
 from PIL import ImageGrab
-from typing import Optional, Tuple, Callable
+from collections.abc import Callable
 from loguru import logger
 from pathlib import Path
 from difflib import SequenceMatcher
 
-from region_capture import get_virtual_screen_bounds, select_region, is_packaged, get_helper_path
+from region_capture import select_region, get_helper_path
 from text_grab import ocr_image
 
 
@@ -171,7 +168,7 @@ class PersistentRegion:
 
     def __init__(
         self,
-        on_text_detected: Optional[Callable[[str], None]] = None,
+        on_text_detected: Callable[[str], None] | None = None,
         poll_interval: float = 2.5,
         change_threshold: float = 0.5
     ):
@@ -183,14 +180,14 @@ class PersistentRegion:
             poll_interval: Seconds between OCR polls in auto-read mode
             change_threshold: Minimum change ratio to trigger read (0.5 = 50%)
         """
-        self.region: Optional[Tuple[int, int, int, int]] = None
-        self.overlay_process: Optional[subprocess.Popen] = None
+        self.region: tuple[int, int, int, int] | None = None
+        self.overlay_process: subprocess.Popen | None = None
         self.on_text_detected = on_text_detected
         self.poll_interval = poll_interval
         self.change_threshold = change_threshold
 
         self._auto_read_enabled = False
-        self._auto_read_thread: Optional[threading.Thread] = None
+        self._auto_read_thread: threading.Thread | None = None
         self._last_text = ""
         self._stop_event = threading.Event()
 
@@ -321,7 +318,7 @@ class PersistentRegion:
             logger.error(f"Failed to capture region: {e}")
             return None
 
-    def read_now(self) -> Optional[str]:
+    def read_now(self) -> str | None:
         """
         Capture and OCR the current region immediately.
 
@@ -425,7 +422,7 @@ class PersistentRegion:
 
 
 # Module-level instance for global access
-_persistent_region: Optional[PersistentRegion] = None
+_persistent_region: PersistentRegion | None = None
 
 
 def get_persistent_region() -> PersistentRegion:

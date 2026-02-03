@@ -6,12 +6,12 @@ Provides system tray icon with menu for controlling TTS settings.
 
 import pystray
 from PIL import Image, ImageDraw
-from typing import Callable, Optional
+from collections.abc import Callable
 from loguru import logger
 import threading
 
 from updater import (
-    get_version_string, get_update_info, check_for_updates_async,
+    get_version_string, check_for_updates_async,
     open_releases_page, should_check_for_updates
 )
 
@@ -83,19 +83,19 @@ class TrayApp:
 
     def __init__(
         self,
-        on_voice_change: Optional[Callable[[str], None]] = None,
-        on_speed_change: Optional[Callable[[int], None]] = None,
-        on_line_delay_change: Optional[Callable[[int], None]] = None,
-        on_read_mode_change: Optional[Callable[[str], None]] = None,
-        on_log_preview_change: Optional[Callable[[bool], None]] = None,
-        on_auto_copy_change: Optional[Callable[[bool], None]] = None,
-        on_ocr_to_clipboard_change: Optional[Callable[[bool], None]] = None,
-        on_auto_read_change: Optional[Callable[[bool], None]] = None,
-        on_pause_toggle: Optional[Callable[[], None]] = None,
-        on_console_toggle: Optional[Callable[[bool], None]] = None,
-        on_speak_hotkey_change: Optional[Callable[[str], None]] = None,
-        on_pause_hotkey_change: Optional[Callable[[str], None]] = None,
-        on_quit: Optional[Callable[[], None]] = None,
+        on_voice_change: Callable[[str], None] | None = None,
+        on_speed_change: Callable[[int], None] | None = None,
+        on_line_delay_change: Callable[[int], None] | None = None,
+        on_read_mode_change: Callable[[str], None] | None = None,
+        on_log_preview_change: Callable[[bool], None] | None = None,
+        on_auto_copy_change: Callable[[bool], None] | None = None,
+        on_ocr_to_clipboard_change: Callable[[bool], None] | None = None,
+        on_auto_read_change: Callable[[bool], None] | None = None,
+        on_pause_toggle: Callable[[], None] | None = None,
+        on_console_toggle: Callable[[bool], None] | None = None,
+        on_speak_hotkey_change: Callable[[str], None] | None = None,
+        on_pause_hotkey_change: Callable[[str], None] | None = None,
+        on_quit: Callable[[], None] | None = None,
         current_voice: str = "aria",
         current_speed: int = 500,
         current_line_delay: int = 0,
@@ -136,7 +136,7 @@ class TrayApp:
         self.is_paused = False
         self.is_speaking = False
 
-        self.icon: Optional[pystray.Icon] = None
+        self.icon: pystray.Icon | None = None
 
         self.is_generating = False
         self.update_available = False

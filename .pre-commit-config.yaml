@@ -1,0 +1,45 @@
+# Pre-commit hooks for herald
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Ruff - fast Python linter with security rules (Bandit)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.1
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+        args: [--check]
+
+  # Security: detect secrets, passwords, API keys
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package.lock.json
+
+  # Prevent large files from being committed
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Local hooks
+  - repo: local
+    hooks:
+      # Run unit tests (fast)
+      - id: unit-tests
+        name: Run unit tests
+        entry: powershell -Command "& 'C:\dev\herald\venv\Scripts\pytest.exe' tests/ -m 'not slow' --tb=short -q"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

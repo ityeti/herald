@@ -9,7 +9,6 @@ import json
 import threading
 import webbrowser
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 from packaging import version as pkg_version
@@ -32,7 +31,7 @@ def get_current_version() -> str:
     return VERSION
 
 
-def check_for_updates() -> Tuple[bool, Optional[str], Optional[str]]:
+def check_for_updates() -> tuple[bool, str | None, str | None]:
     """
     Check GitHub for new releases.
 

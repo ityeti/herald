@@ -42,11 +42,8 @@ except Exception:
         ctypes.windll.user32.SetProcessDPIAware()
     except Exception:
         pass
-import os
-import subprocess
 import keyboard
 from loguru import logger
-from typing import Optional
 
 from config import (
     STOP_HOTKEY, SPEED_UP_HOTKEY, SPEED_DOWN_HOTKEY, QUIT_HOTKEY,
@@ -60,7 +57,7 @@ from config import (
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_content_to_speak, ocr_image
 from region_capture import select_and_capture
-from persistent_region import PersistentRegion, get_persistent_region, set_persistent_region
+from persistent_region import PersistentRegion, set_persistent_region
 from tray_app import TrayApp
 from utils import setup_logging
 
@@ -112,7 +109,7 @@ def ensure_single_instance(force: bool = False):
 
 # Global state
 _quit_requested = False
-_tray_app: Optional[TrayApp] = None
+_tray_app: TrayApp | None = None
 _console_visible = True
 _current_speak_hotkey = DEFAULT_SPEAK_HOTKEY
 _current_pause_hotkey = DEFAULT_PAUSE_HOTKEY
@@ -129,7 +126,7 @@ _ocr_to_clipboard = DEFAULT_OCR_TO_CLIPBOARD  # Copy OCR'd text to clipboard
 _auto_read = DEFAULT_AUTO_READ  # Auto-read when persistent region text changes
 
 # Persistent region for continuous OCR
-_persistent_region: Optional[PersistentRegion] = None
+_persistent_region: PersistentRegion | None = None
 
 # Queue for auto-read text (to handle from main thread)
 import queue

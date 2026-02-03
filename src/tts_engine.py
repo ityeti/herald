@@ -8,11 +8,8 @@ Abstraction layer supporting multiple TTS backends:
 
 import asyncio
 import os
-import tempfile
 import threading
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Optional
 from loguru import logger
 
 from config import MIN_RATE, MAX_RATE, load_settings, set_setting, PROJECT_ROOT
@@ -101,7 +98,7 @@ class Pyttsx3Engine(BaseTTSEngine):
         self._engine = None
         self._speaking = False
         self._paused = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
         # Load saved settings
         settings = load_settings()
@@ -230,14 +227,14 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._generating = False  # True while fetching audio from API
         self._speaking = False    # True while audio is playing
         self._paused = False
-        self._audio_file: Optional[str] = None
-        self._thread: Optional[threading.Thread] = None
+        self._audio_file: str | None = None
+        self._thread: threading.Thread | None = None
         self._file_counter = 0  # Unique filename counter to avoid race conditions
         self._stop_requested = False  # Signal to stop current generation
 
         # Prefetch cache: text_hash -> audio_file_path
         self._prefetch_cache: dict[str, str] = {}
-        self._prefetch_thread: Optional[threading.Thread] = None
+        self._prefetch_thread: threading.Thread | None = None
 
         # Temp directory for audio files
         self._temp_dir = PROJECT_ROOT / "temp"
@@ -486,7 +483,7 @@ class EdgeTTSEngine(BaseTTSEngine):
 
 
 # Singleton instance
-_engine_instance: Optional[BaseTTSEngine] = None
+_engine_instance: BaseTTSEngine | None = None
 
 
 def get_engine() -> BaseTTSEngine:
