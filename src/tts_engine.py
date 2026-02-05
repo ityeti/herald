@@ -93,6 +93,7 @@ class Pyttsx3Engine(BaseTTSEngine):
 
     def __init__(self):
         import pyttsx3
+
         self._pyttsx3 = pyttsx3
 
         self._engine = None
@@ -114,16 +115,16 @@ class Pyttsx3Engine(BaseTTSEngine):
             self._engine = self._pyttsx3.init()
             self._apply_voice()
             # Set rate AFTER voice - some SAPI voices reset rate when changed
-            self._engine.setProperty('rate', self._rate)
+            self._engine.setProperty("rate", self._rate)
         return self._engine
 
     def _apply_voice(self):
         if not self._engine:
             return
-        voices = self._engine.getProperty('voices')
+        voices = self._engine.getProperty("voices")
         for voice in voices:
             if self._voice_name.lower() in voice.name.lower():
-                self._engine.setProperty('voice', voice.id)
+                self._engine.setProperty("voice", voice.id)
                 logger.debug(f"Voice set to: {voice.name}")
                 return
         logger.warning(f"Voice '{self._voice_name}' not found")
@@ -182,7 +183,7 @@ class Pyttsx3Engine(BaseTTSEngine):
     def rate(self, value: int):
         self._rate = max(MIN_RATE, min(MAX_RATE, value))
         if self._engine:
-            self._engine.setProperty('rate', self._rate)
+            self._engine.setProperty("rate", self._rate)
         set_setting("rate", self._rate)
 
     @property
@@ -196,10 +197,31 @@ class Pyttsx3Engine(BaseTTSEngine):
         if self._engine:
             self._apply_voice()
             # Reapply rate after voice change - SAPI voices can reset rate
-            self._engine.setProperty('rate', self._rate)
+            self._engine.setProperty("rate", self._rate)
 
     def get_available_voices(self) -> list[str]:
         return self.VOICES.copy()
+
+
+def _speak_error(message: str):
+    """Speak an error message using offline TTS (fallback when edge-tts fails)."""
+    try:
+        import pyttsx3
+
+        engine = pyttsx3.init()
+        engine.setProperty("rate", 200)
+        engine.say(message)
+        engine.runAndWait()
+        engine.stop()
+    except Exception as e:
+        logger.error(f"Failed to speak error message: {e}")
+        # Last resort: Windows beep (silently ignore if this also fails)
+        try:
+            import winsound
+
+            winsound.Beep(800, 300)  # Error tone
+        except Exception:  # noqa: S110
+            pass
 
 
 class EdgeTTSEngine(BaseTTSEngine):
@@ -219,13 +241,22 @@ class EdgeTTSEngine(BaseTTSEngine):
 
     def __init__(self):
         import pygame
+
         self._pygame = pygame
 
-        # Initialize pygame mixer
-        pygame.mixer.init()
+        # Initialize pygame mixer with explicit settings
+        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+        mixer_info = pygame.mixer.get_init()
+        if mixer_info:
+            logger.info(
+                f"Pygame mixer initialized: freq={mixer_info[0]}, format={mixer_info[1]}, channels={mixer_info[2]}"
+            )
+        else:
+            logger.error("Pygame mixer failed to initialize!")
+            _speak_error("Audio system failed to initialize.")
 
         self._generating = False  # True while fetching audio from API
-        self._speaking = False    # True while audio is playing
+        self._speaking = False  # True while audio is playing
         self._paused = False
         self._audio_file: str | None = None
         self._thread: threading.Thread | None = None
@@ -268,6 +299,7 @@ class EdgeTTSEngine(BaseTTSEngine):
     def _get_text_hash(self, text: str) -> str:
         """Get a short hash for text to use as cache key."""
         import hashlib
+
         return hashlib.md5(text.encode()).hexdigest()[:12]
 
     def _rate_to_edge_modifier(self) -> str:
@@ -318,6 +350,7 @@ class EdgeTTSEngine(BaseTTSEngine):
                 # Generate if not prefetched
                 if audio_file is None:
                     import edge_tts
+
                     voice_id = self.VOICES.get(self._voice_name, "en-US-AriaNeural")
                     rate = self._rate_to_edge_modifier()
 
@@ -331,6 +364,19 @@ class EdgeTTSEngine(BaseTTSEngine):
                         await communicate.save(audio_file)
 
                     asyncio.run(generate())
+
+                    # Verify file was generated successfully
+                    if os.path.exists(audio_file):
+                        file_size = os.path.getsize(audio_file)
+                        if file_size == 0:
+                            logger.error(f"Edge TTS generated empty file: {audio_file}")
+                            _speak_error("Audio generation failed. Check your internet connection.")
+                            return
+                        logger.debug(f"Generated audio: {file_size} bytes")
+                    else:
+                        logger.error(f"Edge TTS failed to create file: {audio_file}")
+                        _speak_error("Audio generation failed. Check your internet connection.")
+                        return
 
                 # Check if stop was requested during generation
                 if self._stop_requested:
@@ -350,9 +396,12 @@ class EdgeTTSEngine(BaseTTSEngine):
                         return
                     try:
                         self._pygame.mixer.music.load(self._audio_file)
+                        self._pygame.mixer.music.set_volume(1.0)  # Ensure volume is max
                         self._pygame.mixer.music.play()
+                        logger.debug(f"Started playback: {self._audio_file}")
                     except Exception as e:
                         logger.error(f"Failed to play audio: {e}")
+                        _speak_error("Audio playback failed.")
                         return
 
                 # Wait for playback to complete
@@ -370,6 +419,7 @@ class EdgeTTSEngine(BaseTTSEngine):
 
             except Exception as e:
                 logger.error(f"Edge TTS error: {e}")
+                _speak_error(f"Text to speech error: {str(e)[:50]}")
             finally:
                 self._generating = False
                 self._speaking = False
@@ -392,6 +442,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         def _prefetch_thread():
             try:
                 import edge_tts
+
                 voice_id = self.VOICES.get(self._voice_name, "en-US-AriaNeural")
                 rate = self._rate_to_edge_modifier()
 
@@ -404,6 +455,16 @@ class EdgeTTSEngine(BaseTTSEngine):
                     await communicate.save(audio_file)
 
                 asyncio.run(generate())
+
+                # Verify file was generated successfully
+                if os.path.exists(audio_file):
+                    file_size = os.path.getsize(audio_file)
+                    if file_size == 0:
+                        logger.error(f"Prefetch generated empty file: {audio_file}")
+                        return
+                else:
+                    logger.error(f"Prefetch failed to create file: {audio_file}")
+                    return
 
                 # Store in cache
                 self._prefetch_cache[text_hash] = audio_file
