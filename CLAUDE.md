@@ -13,7 +13,7 @@ Text-to-speech utility for Windows — the inverse of [whisper-typer](../whisper
 **Phase:** Feature-complete, public release
 **GitHub:** https://github.com/ityeti/herald (public)
 **Docs:** https://ityeti.com/herald/
-**Release:** [v0.2.0](https://github.com/ityeti/herald/releases/tag/v0.2.0)
+**Release:** [v0.2.1](https://github.com/ityeti/herald/releases/tag/v0.2.1)
 
 ## Tech Stack
 
