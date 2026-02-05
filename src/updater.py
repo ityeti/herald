@@ -17,7 +17,7 @@ from loguru import logger
 from config import load_settings, save_settings
 
 # Version info
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 GITHUB_REPO = "ityeti/herald"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
@@ -42,15 +42,11 @@ def check_for_updates() -> tuple[bool, str | None, str | None]:
         logger.debug("Checking for updates...")
 
         request = Request(
-            GITHUB_API_URL,
-            headers={
-                "Accept": "application/vnd.github.v3+json",
-                "User-Agent": f"Herald/{VERSION}"
-            }
+            GITHUB_API_URL, headers={"Accept": "application/vnd.github.v3+json", "User-Agent": f"Herald/{VERSION}"}
         )
 
         with urlopen(request, timeout=5) as response:
-            data = json.loads(response.read().decode('utf-8'))
+            data = json.loads(response.read().decode("utf-8"))
 
         latest_tag = data.get("tag_name", "").lstrip("v")
         html_url = data.get("html_url", "")
@@ -127,6 +123,7 @@ def check_for_updates_async(callback=None, force: bool = False):
         callback: Optional function to call with (available, version, url)
         force: If True, check even if recently checked
     """
+
     def _check():
         global _update_info
 
