@@ -33,6 +33,8 @@ Feature tracking and version history for Herald.
 - [x] Copy OCR'd text to clipboard (toggle in tray menu)
 - [x] Persistent OCR region (Alt+M) for PDFs and videos
 - [x] Auto-read mode (polls region, reads when text changes 50%+)
+- [x] Verbal error alerts (speaks errors via offline fallback when edge-tts fails)
+- [x] Diagnostic logging for audio generation and playback
 
 ## Backlog
 
@@ -50,3 +52,12 @@ Feature tracking and version history for Herald.
 
 - If keyboard gets stuck (rare), close Herald to release hooks
 - **pygame pkg_resources warning**: Pygame uses deprecated setuptools API internally. Suppressed in main.py with warning filter. Will be fixed when pygame updates to importlib.resources. See: https://github.com/pygame/pygame/issues
+- **Edge-tts silent failures**: Network issues can cause edge-tts to generate 0-byte MP3 files without throwing exceptions. Fixed in v0.2.1+ with file validation and verbal error alerts using pyttsx3 fallback.
+
+## Troubleshooting
+
+### No audio plays but tray shows "speaking"
+1. Check `logs/herald.log` for error messages
+2. Look for "Edge TTS generated empty file" - indicates network/API issue
+3. Herald will now speak "Audio generation failed" via offline voice when this happens
+4. Try again - usually transient network issue with Microsoft's edge-tts API
