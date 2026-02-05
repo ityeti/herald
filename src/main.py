@@ -7,16 +7,16 @@ The inverse of whisper (voice-to-text).
 Usage:
     python main.py
 
-Hotkeys:
-    Alt+S   - Speak clipboard/selection (auto-copies, supports OCR for images)
-    Alt+O   - OCR region capture (draw box on screen to read)
-    Alt+P   - Pause/resume
-    Alt+N   - Skip to next line
-    Alt+B   - Go back to previous line
-    Alt+]   - Speed up
-    Alt+[   - Slow down
-    Escape  - Stop speaking (clears line queue)
-    Alt+Q   - Quit application
+Hotkeys (all configurable via tray menu and settings.json):
+    Ctrl+Shift+S   - Speak clipboard/selection (auto-copies, supports OCR for images)
+    Ctrl+Shift+O   - OCR region capture (draw box on screen to read)
+    Ctrl+Shift+P   - Pause/resume
+    Ctrl+Shift+N   - Skip to next line
+    Ctrl+Shift+B   - Go back to previous line
+    Ctrl+Shift+]   - Speed up
+    Ctrl+Shift+[   - Slow down
+    Escape         - Stop speaking (clears line queue)
+    Ctrl+Shift+Q   - Quit application
 
 Requires admin privileges on Windows for global hotkeys.
 """
@@ -46,21 +46,13 @@ import keyboard
 from loguru import logger
 
 from config import (
-    STOP_HOTKEY,
-    SPEED_UP_HOTKEY,
-    SPEED_DOWN_HOTKEY,
-    QUIT_HOTKEY,
-    NEXT_LINE_HOTKEY,
-    PREV_LINE_HOTKEY,
-    OCR_REGION_HOTKEY,
-    MONITOR_REGION_HOTKEY,
+    DEFAULT_HOTKEYS,
     RATE_STEP,
     MIN_RATE,
     MAX_RATE,
     load_settings,
     set_setting,
-    DEFAULT_SPEAK_HOTKEY,
-    DEFAULT_PAUSE_HOTKEY,
+    save_settings,
     DEFAULT_LINE_DELAY,
     DEFAULT_READ_MODE,
     DEFAULT_LOG_PREVIEW,
@@ -133,8 +125,7 @@ def ensure_single_instance(force: bool = False):
 _quit_requested = False
 _tray_app: TrayApp | None = None
 _console_visible = True
-_current_speak_hotkey = DEFAULT_SPEAK_HOTKEY
-_current_pause_hotkey = DEFAULT_PAUSE_HOTKEY
+_current_hotkeys: dict[str, str] = {}  # setting_key -> current hotkey string
 
 # Line queue for skip functionality
 _line_queue: list[str] = []
@@ -295,7 +286,9 @@ def on_monitor_region_toggle():
                 time.sleep(0.2)  # Small extra buffer
                 _persistent_region.set_auto_read(True)
             else:
-                engine.speak("Monitor region active. Press Alt S to read, or Alt M to close.")
+                speak_key = _current_hotkeys.get("hotkey_speak", "ctrl+shift+s").replace("+", " ")
+                monitor_key = _current_hotkeys.get("hotkey_monitor", "ctrl+shift+m").replace("+", " ")
+                engine.speak(f"Monitor region active. Press {speak_key} to read, or {monitor_key} to close.")
         else:
             logger.info("Region selection cancelled")
 
@@ -670,7 +663,8 @@ def on_auto_read_change(enabled: bool):
         if _persistent_region and _persistent_region.is_active:
             engine.speak("Auto-read enabled. Will read when text changes.")
         else:
-            engine.speak("Auto-read enabled. Activate monitor region with Alt M.")
+            monitor_key = _current_hotkeys.get("hotkey_monitor", "ctrl+shift+m").replace("+", " ")
+            engine.speak(f"Auto-read enabled. Activate monitor region with {monitor_key}.")
     else:
         engine.speak("Auto-read disabled")
 
@@ -720,54 +714,106 @@ def on_console_toggle(visible: bool):
             logger.info("Console hidden")
 
 
-def on_speak_hotkey_change(new_hotkey: str):
-    """Handle speak hotkey change from tray menu."""
-    global _current_speak_hotkey
+# Hotkey registry: setting_key -> (callback_function, suppress_default)
+# Populated after all callback functions are defined
+_HOTKEY_REGISTRY: dict[str, tuple] = {}
 
-    old_hotkey = _current_speak_hotkey
-    logger.info(f"Changing speak hotkey: {old_hotkey} -> {new_hotkey}")
 
-    # Unregister old hotkey
+def _init_hotkey_registry():
+    """Initialize the hotkey registry after all callbacks are defined."""
+    global _HOTKEY_REGISTRY
+    _HOTKEY_REGISTRY = {
+        "hotkey_speak": (on_speak_hotkey, False),
+        "hotkey_pause": (on_pause_resume, False),
+        "hotkey_stop": (on_stop_hotkey, False),
+        "hotkey_speed_up": (on_speed_up, True),
+        "hotkey_speed_down": (on_speed_down, True),
+        "hotkey_next": (on_next_line, False),
+        "hotkey_prev": (on_prev_line, False),
+        "hotkey_ocr": (on_ocr_region, False),
+        "hotkey_monitor": (on_monitor_region_toggle, False),
+        "hotkey_quit": (on_quit, False),
+    }
+
+
+def register_hotkey(setting_key: str, hotkey_string: str):
+    """Register a single hotkey by its setting key."""
+    callback, suppress_default = _HOTKEY_REGISTRY[setting_key]
+    should_suppress = suppress_default or ("]" in hotkey_string or "[" in hotkey_string)
+    keyboard.add_hotkey(hotkey_string, safe_callback(callback), suppress=should_suppress)
+
+
+def unregister_hotkey(hotkey_string: str):
+    """Unregister a hotkey, ignoring errors if not registered."""
     try:
-        keyboard.remove_hotkey(old_hotkey)
+        keyboard.remove_hotkey(hotkey_string)
     except (KeyError, ValueError):
-        pass  # Hotkey wasn't registered
+        pass
 
-    # Register new hotkey
-    keyboard.add_hotkey(new_hotkey, on_speak_hotkey, suppress=True)
-    _current_speak_hotkey = new_hotkey
+
+def register_all_hotkeys():
+    """Register all hotkeys from _current_hotkeys."""
+    for setting_key, hotkey_string in _current_hotkeys.items():
+        register_hotkey(setting_key, hotkey_string)
+
+
+def on_hotkey_change(setting_key: str, new_hotkey: str):
+    """Handle any hotkey change from tray menu."""
+    global _current_hotkeys
+
+    # Check for conflicts
+    for key, val in _current_hotkeys.items():
+        if key != setting_key and val == new_hotkey:
+            label = key.replace("hotkey_", "").replace("_", " ").title()
+            logger.warning(f"Hotkey conflict: {new_hotkey} already used by {label}")
+            engine = get_engine()
+            engine.speak(f"Warning: {new_hotkey.replace('+', ' ')} conflicts with {label}")
+            return
+
+    old_hotkey = _current_hotkeys.get(setting_key)
+    label = setting_key.replace("hotkey_", "").replace("_", " ").title()
+    logger.info(f"Changing {label} hotkey: {old_hotkey} -> {new_hotkey}")
+
+    # Unregister old, register new
+    if old_hotkey:
+        unregister_hotkey(old_hotkey)
+    register_hotkey(setting_key, new_hotkey)
+    _current_hotkeys[setting_key] = new_hotkey
 
     # Save to settings
-    set_setting("hotkey_speak", new_hotkey)
+    set_setting(setting_key, new_hotkey)
 
-    # Announce the change
+    # Announce
     engine = get_engine()
-    engine.speak(f"Speak hotkey changed to {new_hotkey.replace('+', ' ')}")
+    engine.speak(f"{label} hotkey changed to {new_hotkey.replace('+', ' ')}")
 
 
-def on_pause_hotkey_change(new_hotkey: str):
-    """Handle pause hotkey change from tray menu."""
-    global _current_pause_hotkey
+def on_reset_hotkeys():
+    """Reset all hotkeys to defaults."""
+    global _current_hotkeys
 
-    old_hotkey = _current_pause_hotkey
-    logger.info(f"Changing pause hotkey: {old_hotkey} -> {new_hotkey}")
+    logger.info("Resetting all hotkeys to defaults")
 
-    # Unregister old hotkey
-    try:
-        keyboard.remove_hotkey(old_hotkey)
-    except (KeyError, ValueError):
-        pass  # Hotkey wasn't registered
+    # Unregister all current
+    for hotkey_string in _current_hotkeys.values():
+        unregister_hotkey(hotkey_string)
 
-    # Register new hotkey
-    keyboard.add_hotkey(new_hotkey, on_pause_resume, suppress=True)
-    _current_pause_hotkey = new_hotkey
+    # Set and register defaults
+    _current_hotkeys = dict(DEFAULT_HOTKEYS)
+    register_all_hotkeys()
 
-    # Save to settings
-    set_setting("hotkey_pause", new_hotkey)
+    # Save all to settings
+    settings = load_settings()
+    settings.update(DEFAULT_HOTKEYS)
+    save_settings(settings)
 
-    # Announce the change
+    # Update tray menu
+    if _tray_app:
+        for key, value in _current_hotkeys.items():
+            _tray_app.set_hotkey(key, value)
+
     engine = get_engine()
-    engine.speak(f"Pause hotkey changed to {new_hotkey.replace('+', ' ')}")
+    engine.speak("All hotkeys reset to defaults")
 
 
 def update_tray_state():
@@ -812,7 +858,7 @@ def update_tray_state():
 
 def main():
     """Main entry point."""
-    global _tray_app, _current_speak_hotkey, _current_pause_hotkey
+    global _tray_app, _current_hotkeys
     global \
         _line_delay, \
         _read_mode, \
@@ -833,8 +879,8 @@ def main():
 
     # Load settings
     settings = load_settings()
-    _current_speak_hotkey = settings.get("hotkey_speak", DEFAULT_SPEAK_HOTKEY)
-    _current_pause_hotkey = settings.get("hotkey_pause", DEFAULT_PAUSE_HOTKEY)
+    for key in DEFAULT_HOTKEYS:
+        _current_hotkeys[key] = settings.get(key, DEFAULT_HOTKEYS[key])
     _line_delay = settings.get("line_delay", DEFAULT_LINE_DELAY)
     _read_mode = settings.get("read_mode", DEFAULT_READ_MODE)
     _log_preview = settings.get("log_preview", DEFAULT_LOG_PREVIEW)
@@ -845,16 +891,9 @@ def main():
     _normalize_text = settings.get("normalize_text", DEFAULT_NORMALIZE_TEXT)
 
     logger.info("Herald started")
-    logger.info(f"  Speak:      {_current_speak_hotkey}")
-    logger.info(f"  Pause:      {_current_pause_hotkey}")
-    logger.info(f"  Speed up:   {SPEED_UP_HOTKEY}")
-    logger.info(f"  Slow down:  {SPEED_DOWN_HOTKEY}")
-    logger.info(f"  Next line:  {NEXT_LINE_HOTKEY}")
-    logger.info(f"  Prev line:  {PREV_LINE_HOTKEY}")
-    logger.info(f"  OCR region: {OCR_REGION_HOTKEY}")
-    logger.info(f"  Monitor:    {MONITOR_REGION_HOTKEY}")
-    logger.info(f"  Stop:       {STOP_HOTKEY}")
-    logger.info(f"  Quit:       {QUIT_HOTKEY}")
+    for key, hotkey in _current_hotkeys.items():
+        label = key.replace("hotkey_", "").replace("_", " ").title()
+        logger.info(f"  {label:12s}: {hotkey}")
     print()
     print("Tip: Right-click the tray icon to hide this console or change settings.")
     print()
@@ -877,8 +916,8 @@ def main():
         on_normalize_text_change=on_normalize_text_change,
         on_pause_toggle=on_pause_resume,
         on_console_toggle=on_console_toggle,
-        on_speak_hotkey_change=on_speak_hotkey_change,
-        on_pause_hotkey_change=on_pause_hotkey_change,
+        on_hotkey_change=on_hotkey_change,
+        on_reset_hotkeys=on_reset_hotkeys,
         on_quit=on_quit,
         current_voice=engine.voice_name,
         current_speed=engine.rate,
@@ -890,25 +929,14 @@ def main():
         current_auto_read=_auto_read,
         current_filter_code=_filter_code,
         current_normalize_text=_normalize_text,
-        current_speak_hotkey=_current_speak_hotkey,
-        current_pause_hotkey=_current_pause_hotkey,
+        current_hotkeys=dict(_current_hotkeys),
         console_visible=True,
     )
     _tray_app.start_async()
 
-    # Register hotkeys
-    # Using suppress=False to avoid interfering with other Windows hotkeys
-    # Only suppress keys that could cause unwanted input (like typing brackets)
-    keyboard.add_hotkey(_current_speak_hotkey, safe_callback(on_speak_hotkey), suppress=False)
-    keyboard.add_hotkey(_current_pause_hotkey, safe_callback(on_pause_resume), suppress=False)
-    keyboard.add_hotkey(STOP_HOTKEY, safe_callback(on_stop_hotkey), suppress=False)
-    keyboard.add_hotkey(SPEED_UP_HOTKEY, safe_callback(on_speed_up), suppress=True)  # Suppress [ to avoid typing
-    keyboard.add_hotkey(SPEED_DOWN_HOTKEY, safe_callback(on_speed_down), suppress=True)  # Suppress ] to avoid typing
-    keyboard.add_hotkey(NEXT_LINE_HOTKEY, safe_callback(on_next_line), suppress=False)
-    keyboard.add_hotkey(PREV_LINE_HOTKEY, safe_callback(on_prev_line), suppress=False)
-    keyboard.add_hotkey(OCR_REGION_HOTKEY, safe_callback(on_ocr_region), suppress=False)
-    keyboard.add_hotkey(MONITOR_REGION_HOTKEY, safe_callback(on_monitor_region_toggle), suppress=False)
-    keyboard.add_hotkey(QUIT_HOTKEY, safe_callback(on_quit), suppress=False)
+    # Initialize hotkey registry and register all from settings
+    _init_hotkey_registry()
+    register_all_hotkeys()
 
     try:
         # Main loop - poll for quit and update tray state

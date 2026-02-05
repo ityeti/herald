@@ -12,19 +12,38 @@ PROJECT_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = PROJECT_ROOT / "config"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 
-# Hotkey defaults (configurable via tray menu)
-DEFAULT_SPEAK_HOTKEY = "alt+s"
-DEFAULT_PAUSE_HOTKEY = "alt+p"
+# Hotkey defaults (all configurable via tray menu and settings.json)
+# Changed from Alt+key to Ctrl+Shift+key to avoid Windows Terminal conflicts
+DEFAULT_HOTKEYS = {
+    "hotkey_speak": "ctrl+shift+s",
+    "hotkey_pause": "ctrl+shift+p",
+    "hotkey_stop": "escape",
+    "hotkey_speed_up": "ctrl+shift+]",
+    "hotkey_speed_down": "ctrl+shift+[",
+    "hotkey_next": "ctrl+shift+n",
+    "hotkey_prev": "ctrl+shift+b",
+    "hotkey_ocr": "ctrl+shift+o",
+    "hotkey_monitor": "ctrl+shift+m",
+    "hotkey_quit": "ctrl+shift+q",
+}
 
-# Fixed hotkeys (not configurable)
-STOP_HOTKEY = "escape"  # Stop speaking
-SPEED_UP_HOTKEY = "alt+]"  # Increase rate
-SPEED_DOWN_HOTKEY = "alt+["  # Decrease rate
-NEXT_LINE_HOTKEY = "alt+n"  # Skip to next line
-PREV_LINE_HOTKEY = "alt+b"  # Go back to previous line
-OCR_REGION_HOTKEY = "alt+o"  # OCR region capture (one-time)
-MONITOR_REGION_HOTKEY = "alt+m"  # Toggle persistent OCR region
-QUIT_HOTKEY = "alt+q"  # Exit application
+# Individual constants for backward compatibility
+DEFAULT_SPEAK_HOTKEY = DEFAULT_HOTKEYS["hotkey_speak"]
+DEFAULT_PAUSE_HOTKEY = DEFAULT_HOTKEYS["hotkey_pause"]
+DEFAULT_STOP_HOTKEY = DEFAULT_HOTKEYS["hotkey_stop"]
+DEFAULT_SPEED_UP_HOTKEY = DEFAULT_HOTKEYS["hotkey_speed_up"]
+DEFAULT_SPEED_DOWN_HOTKEY = DEFAULT_HOTKEYS["hotkey_speed_down"]
+DEFAULT_NEXT_LINE_HOTKEY = DEFAULT_HOTKEYS["hotkey_next"]
+DEFAULT_PREV_LINE_HOTKEY = DEFAULT_HOTKEYS["hotkey_prev"]
+DEFAULT_OCR_REGION_HOTKEY = DEFAULT_HOTKEYS["hotkey_ocr"]
+DEFAULT_MONITOR_REGION_HOTKEY = DEFAULT_HOTKEYS["hotkey_monitor"]
+DEFAULT_QUIT_HOTKEY = DEFAULT_HOTKEYS["hotkey_quit"]
+
+# Which hotkeys suppress key passthrough (to prevent typing brackets)
+HOTKEY_SUPPRESS = {
+    "hotkey_speed_up": True,
+    "hotkey_speed_down": True,
+}
 
 # TTS defaults
 DEFAULT_RATE = 900  # Words per minute (max for online voices)
@@ -73,6 +92,14 @@ DEFAULT_SETTINGS = {
     "rate": DEFAULT_RATE,
     "hotkey_speak": DEFAULT_SPEAK_HOTKEY,
     "hotkey_pause": DEFAULT_PAUSE_HOTKEY,
+    "hotkey_stop": DEFAULT_STOP_HOTKEY,
+    "hotkey_speed_up": DEFAULT_SPEED_UP_HOTKEY,
+    "hotkey_speed_down": DEFAULT_SPEED_DOWN_HOTKEY,
+    "hotkey_next": DEFAULT_NEXT_LINE_HOTKEY,
+    "hotkey_prev": DEFAULT_PREV_LINE_HOTKEY,
+    "hotkey_ocr": DEFAULT_OCR_REGION_HOTKEY,
+    "hotkey_monitor": DEFAULT_MONITOR_REGION_HOTKEY,
+    "hotkey_quit": DEFAULT_QUIT_HOTKEY,
     "line_delay": DEFAULT_LINE_DELAY,
     "read_mode": DEFAULT_READ_MODE,
     "log_preview": DEFAULT_LOG_PREVIEW,

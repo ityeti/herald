@@ -7,7 +7,6 @@ Shared fixtures and test utilities.
 import os
 import sys
 import json
-import tempfile
 import pytest
 from pathlib import Path
 
@@ -17,7 +16,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Suppress pygame welcome message
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 
 @pytest.fixture
@@ -37,6 +36,14 @@ def sample_settings():
         "rate": 500,
         "hotkey_speak": "alt+s",
         "hotkey_pause": "alt+p",
+        "hotkey_stop": "escape",
+        "hotkey_speed_up": "alt+]",
+        "hotkey_speed_down": "alt+[",
+        "hotkey_next": "alt+n",
+        "hotkey_prev": "alt+b",
+        "hotkey_ocr": "alt+o",
+        "hotkey_monitor": "alt+m",
+        "hotkey_quit": "alt+q",
         "line_delay": 0,
         "read_mode": "lines",
         "log_preview": True,

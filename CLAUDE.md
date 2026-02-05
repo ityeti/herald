@@ -53,18 +53,20 @@ Cross-project TTS→STT validation tests are in `dev-oversight/tests/`.
 
 ## Default Hotkeys
 
+All hotkeys are configurable via the tray menu and `config/settings.json`.
+
 | Hotkey | Action |
 |--------|--------|
-| Alt+S | Speak selection/clipboard (auto-copy, OCR images) |
-| Alt+O | OCR region capture (one-time) |
-| Alt+M | Toggle persistent OCR region (for PDFs/videos) |
-| Alt+P | Pause/resume |
-| Alt+N | Skip to next line |
-| Alt+B | Go back to previous line |
-| Alt+] | Speed up |
-| Alt+[ | Slow down |
+| Ctrl+Shift+S | Speak selection/clipboard (auto-copy, OCR images) |
+| Ctrl+Shift+O | OCR region capture (one-time) |
+| Ctrl+Shift+M | Toggle persistent OCR region (for PDFs/videos) |
+| Ctrl+Shift+P | Pause/resume |
+| Ctrl+Shift+N | Skip to next line |
+| Ctrl+Shift+B | Go back to previous line |
+| Ctrl+Shift+] | Speed up |
+| Ctrl+Shift+[ | Slow down |
 | Escape | Stop |
-| Alt+Q | Quit |
+| Ctrl+Shift+Q | Quit |
 
 ## Settings
 
@@ -74,8 +76,16 @@ Saved to `config/settings.json`:
   "engine": "edge",
   "voice": "aria",
   "rate": 500,
-  "hotkey_speak": "alt+s",
-  "hotkey_pause": "alt+p",
+  "hotkey_speak": "ctrl+shift+s",
+  "hotkey_pause": "ctrl+shift+p",
+  "hotkey_stop": "escape",
+  "hotkey_speed_up": "ctrl+shift+]",
+  "hotkey_speed_down": "ctrl+shift+[",
+  "hotkey_next": "ctrl+shift+n",
+  "hotkey_prev": "ctrl+shift+b",
+  "hotkey_ocr": "ctrl+shift+o",
+  "hotkey_monitor": "ctrl+shift+m",
+  "hotkey_quit": "ctrl+shift+q",
   "auto_copy": true,
   "auto_read": false
 }

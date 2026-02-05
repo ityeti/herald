@@ -31,9 +31,9 @@ A text-to-speech utility for Windows that reads clipboard text aloud using high-
 
 - **Neural Voices**: Microsoft Edge neural voices (Aria, Jenny, Guy, Christopher) via edge-tts
 - **Offline Fallback**: Windows SAPI voices (Zira, David) when offline
-- **OCR Support**: Read text from screenshots and images (Win+Shift+S → Alt+S)
-- **Region Capture**: Draw a box on screen to OCR and read (Alt+O) - great for PDFs
-- **Auto-Copy**: Just select text and press Alt+S - no need to Ctrl+C first
+- **OCR Support**: Read text from screenshots and images (Win+Shift+S → Ctrl+Shift+S)
+- **Region Capture**: Draw a box on screen to OCR and read (Ctrl+Shift+O) - great for PDFs
+- **Auto-Copy**: Just select text and press Ctrl+Shift+S - no need to Ctrl+C first
 - **Global Hotkeys**: Works in any application
 - **System Tray**: Unobtrusive tray icon with menu controls
 - **Pause/Resume**: Pause mid-speech and resume later
@@ -81,22 +81,22 @@ Double-click **`Launch_Herald.bat`** - it will:
 
 **Read selected text:**
 1. Select any text in any application
-2. Press **Alt+S** to hear it read aloud (auto-copies selection)
+2. Press **Ctrl+Shift+S** to hear it read aloud (auto-copies selection)
 
 **Read from screenshot:**
 1. Take a screenshot with **Win+Shift+S** and select a region
-2. Press **Alt+S** to OCR and read the text
+2. Press **Ctrl+Shift+S** to OCR and read the text
 
 **Read from screen region (great for PDFs):**
-1. Press **Alt+O** to enter region capture mode
+1. Press **Ctrl+Shift+O** to enter region capture mode
 2. Draw a box around the text you want to read
 3. Text is OCR'd and read aloud automatically
 
 **Persistent region for PDFs/videos:**
-1. Press **Alt+M** to define a screen region (green border appears)
-2. Press **Alt+S** anytime to read from that region
+1. Press **Ctrl+Shift+M** to define a screen region (green border appears)
+2. Press **Ctrl+Shift+S** anytime to read from that region
 3. Enable "Auto-Read Monitor Region" in tray menu to read automatically when text changes
-4. Press **Alt+M** again to clear the region
+4. Press **Ctrl+Shift+M** again to clear the region
 
 **Controls:**
 - Press **Alt+P** to pause/resume
@@ -115,22 +115,24 @@ Double-click **`Autostart_Disable.bat`** (will prompt for admin rights).
 
 ## Hotkeys
 
+All hotkeys are configurable via the system tray menu and `config/settings.json`.
+
 | Hotkey | Action |
 |--------|--------|
-| Alt+S | Speak selection/clipboard (auto-copies, supports OCR for images) |
-| Alt+O | OCR region capture (draw box on screen) |
-| Alt+M | Toggle persistent OCR region (for PDFs/videos) |
-| Alt+P | Pause/resume |
-| Alt+N | Skip to next line |
-| Alt+B | Go back to previous line |
-| Alt+] | Speed up |
-| Alt+[ | Slow down |
+| Ctrl+Shift+S | Speak selection/clipboard (auto-copies, supports OCR for images) |
+| Ctrl+Shift+O | OCR region capture (draw box on screen) |
+| Ctrl+Shift+M | Toggle persistent OCR region (for PDFs/videos) |
+| Ctrl+Shift+P | Pause/resume |
+| Ctrl+Shift+N | Skip to next line |
+| Ctrl+Shift+B | Go back to previous line |
+| Ctrl+Shift+] | Speed up |
+| Ctrl+Shift+[ | Slow down |
 | Escape | Stop speaking |
-| Alt+Q | Quit application |
+| Ctrl+Shift+Q | Quit application |
 
 ### Line Navigation
 
-When you press Alt+S, text is split by newlines and read one line at a time. Use **Alt+N** to skip ahead or **Alt+B** to go back. This is useful for:
+When you press Ctrl+Shift+S, text is split by newlines and read one line at a time. Use **Ctrl+Shift+N** to skip ahead or **Ctrl+Shift+B** to go back. This is useful for:
 - Bouncing through code blocks
 - Skipping sections you've already heard
 - Replaying a line you missed
@@ -148,7 +150,7 @@ Right-click the tray icon to access:
 - **Grab & Speak Selection**: Auto-copy and speak when you select text
 - **Copy OCR to Clipboard**: Save OCR'd text for pasting
 - **Auto-Read Monitor Region**: Continuously read when text changes in persistent region
-- **Hotkeys**: Configure speak and pause hotkeys
+- **Hotkeys**: Configure all hotkeys (organized by Reading, Navigation, OCR, App categories)
 - **Console**: Show or hide the console window
 - **Show Text Preview**: Toggle whether text content appears in console/logs (privacy option)
 - **Quit**: Exit the application
@@ -162,8 +164,16 @@ Settings are saved to `config/settings.json`:
   "engine": "edge",
   "voice": "aria",
   "rate": 900,
-  "hotkey_speak": "alt+s",
-  "hotkey_pause": "alt+p",
+  "hotkey_speak": "ctrl+shift+s",
+  "hotkey_pause": "ctrl+shift+p",
+  "hotkey_stop": "escape",
+  "hotkey_speed_up": "ctrl+shift+]",
+  "hotkey_speed_down": "ctrl+shift+[",
+  "hotkey_next": "ctrl+shift+n",
+  "hotkey_prev": "ctrl+shift+b",
+  "hotkey_ocr": "ctrl+shift+o",
+  "hotkey_monitor": "ctrl+shift+m",
+  "hotkey_quit": "ctrl+shift+q",
   "line_delay": 0,
   "read_mode": "lines",
   "log_preview": true
@@ -175,8 +185,16 @@ Settings are saved to `config/settings.json`:
 | engine | edge, pyttsx3 | TTS engine (auto-selected based on voice) |
 | voice | aria, jenny, guy, christopher, zira, david | Voice name |
 | rate | 150-1500 | Words per minute (online: 150-900, offline: up to 1500) |
-| hotkey_speak | alt+s, ctrl+shift+s, f9, alt+r, ctrl+` | Speak hotkey |
-| hotkey_pause | alt+p, ctrl+shift+p, f10 | Pause hotkey |
+| hotkey_speak | ctrl+shift+s, alt+s, f9, alt+r | Speak hotkey |
+| hotkey_pause | ctrl+shift+p, alt+p, f10 | Pause hotkey |
+| hotkey_stop | escape, f12 | Stop hotkey |
+| hotkey_speed_up | ctrl+shift+], alt+] | Speed up hotkey |
+| hotkey_speed_down | ctrl+shift+[, alt+[ | Slow down hotkey |
+| hotkey_next | ctrl+shift+n, alt+n, f7 | Next line hotkey |
+| hotkey_prev | ctrl+shift+b, alt+b, f6 | Previous line hotkey |
+| hotkey_ocr | ctrl+shift+o, ctrl+alt+shift+o, alt+o, f8 | OCR capture hotkey |
+| hotkey_monitor | ctrl+shift+m, ctrl+alt+shift+m, alt+m, f11 | Monitor region hotkey |
+| hotkey_quit | ctrl+shift+q, alt+q | Quit hotkey |
 | line_delay | 0-2000 | Milliseconds to pause between lines |
 | read_mode | lines, continuous | Line by line or read all text at once |
 | log_preview | true, false | Show text content in console/logs |
