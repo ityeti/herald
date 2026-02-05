@@ -326,10 +326,23 @@ class EdgeTTSEngine(BaseTTSEngine):
             return f"+{percent}%"
         return f"{percent}%"
 
+    def _stop_playback(self):
+        """Stop current playback without clearing prefetch cache (for line transitions)."""
+        self._stop_requested = True
+        self._generating = False
+        self._speaking = False
+        self._paused = False
+        with self._mixer_lock:
+            try:
+                self._pygame.mixer.music.stop()
+            except Exception:  # noqa: S110
+                pass
+        self._cleanup_audio()
+
     def speak(self, text: str) -> None:
         if not text or not text.strip():
             return
-        self.stop()
+        self._stop_playback()
 
         text_hash = self._get_text_hash(text)
 

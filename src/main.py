@@ -407,10 +407,11 @@ def _speak_current_line():
         if _tray_app:
             _tray_app.set_generating(True)
 
-        # Prefetch next line while this one plays
-        if _current_line_index + 1 < len(_line_queue):
-            next_line = _line_queue[_current_line_index + 1]
-            engine.prefetch(next_line)
+        # Prefetch next lines while this one plays
+        for offset in range(1, 3):
+            idx = _current_line_index + offset
+            if idx < len(_line_queue):
+                engine.prefetch(_line_queue[idx])
     else:
         if _tray_app:
             _tray_app.set_speaking(True)
