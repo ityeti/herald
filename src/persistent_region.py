@@ -87,6 +87,8 @@ class BorderOverlay:
 
         # Colors - darker, more modern green
         border_color = '#2E7D32'  # Material Design Green 800
+        label_bg_color = '#2E7D32'
+        label_text_color = 'white'
 
         # Draw rounded rectangle border
         self._draw_rounded_rect(
@@ -96,6 +98,27 @@ class BorderOverlay:
             height - self.padding + self.border_width // 2,
             self.corner_radius,
             border_color
+        )
+
+        # Draw "OCR" label at top-left corner
+        label_text = "OCR"
+        label_font = ('Segoe UI', 9, 'bold')
+        label_padding_x = 6
+        label_padding_y = 2
+
+        # Create label background rectangle
+        label_x = self.padding + 4
+        label_y = self.padding - self.border_width - 1
+        self.canvas.create_rectangle(
+            label_x, label_y,
+            label_x + 32, label_y + 16,
+            fill=label_bg_color, outline=label_bg_color
+        )
+
+        # Create label text
+        self.canvas.create_text(
+            label_x + label_padding_x, label_y + label_padding_y,
+            text=label_text, font=label_font, fill=label_text_color, anchor='nw'
         )
 
         # Close on Escape
@@ -170,7 +193,7 @@ class PersistentRegion:
         self,
         on_text_detected: Callable[[str], None] | None = None,
         poll_interval: float = 2.5,
-        change_threshold: float = 0.5
+        change_threshold: float = 0.5,
     ):
         """
         Initialize persistent region manager.
@@ -268,9 +291,7 @@ class PersistentRegion:
 
             # Start overlay process
             self.overlay_process = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                cmd, stdin=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             )
             logger.debug("Overlay process started")
 
@@ -283,18 +304,18 @@ class PersistentRegion:
         if self.overlay_process:
             try:
                 # Try to send quit signal
-                self.overlay_process.stdin.write(b'q')
+                self.overlay_process.stdin.write(b"q")
                 self.overlay_process.stdin.flush()
-            except:
+            except Exception:  # noqa: S110
                 pass
 
             try:
                 self.overlay_process.terminate()
                 self.overlay_process.wait(timeout=1)
-            except:
+            except Exception:
                 try:
                     self.overlay_process.kill()
-                except:
+                except Exception:  # noqa: S110
                     pass
 
             self.overlay_process = None
@@ -355,7 +376,7 @@ class PersistentRegion:
         self._last_text = ""  # Clear so first scan always triggers
         self._auto_read_thread = threading.Thread(target=self._auto_read_loop, daemon=True)
         self._auto_read_thread.start()
-        logger.info(f"Auto-read started (poll: {self.poll_interval}s, threshold: {self.change_threshold*100:.0f}%)")
+        logger.info(f"Auto-read started (poll: {self.poll_interval}s, threshold: {self.change_threshold * 100:.0f}%)")
 
     def _stop_auto_read(self):
         """Stop the auto-read polling thread."""
@@ -382,7 +403,9 @@ class PersistentRegion:
                         should_read = first_run or self._has_significant_change(text)
 
                         if should_read:
-                            logger.info(f"Auto-read: {'First scan' if first_run else 'Text changed'} ({len(text)} chars)")
+                            logger.info(
+                                f"Auto-read: {'First scan' if first_run else 'Text changed'} ({len(text)} chars)"
+                            )
                             self._last_text = text
                             first_run = False
 

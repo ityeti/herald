@@ -153,7 +153,7 @@ class Pyttsx3Engine(BaseTTSEngine):
         if self._engine and self._speaking:
             try:
                 self._engine.stop()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         self._speaking = False
         self._paused = False
@@ -266,8 +266,9 @@ class EdgeTTSEngine(BaseTTSEngine):
         # Thread lock for pygame mixer operations (pygame is not thread-safe)
         self._mixer_lock = threading.Lock()
 
-        # Prefetch cache: text_hash -> audio_file_path
+        # Prefetch cache: text_hash -> audio_file_path (ordered dict for LRU eviction)
         self._prefetch_cache: dict[str, str] = {}
+        self._prefetch_cache_max_size = 10  # Max cached audio files
         self._prefetch_thread: threading.Thread | None = None
 
         # Temp directory for audio files
@@ -291,9 +292,9 @@ class EdgeTTSEngine(BaseTTSEngine):
             for f in self._temp_dir.glob("herald_*.mp3"):
                 try:
                     f.unlink()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def _get_text_hash(self, text: str) -> str:
@@ -466,8 +467,9 @@ class EdgeTTSEngine(BaseTTSEngine):
                     logger.error(f"Prefetch failed to create file: {audio_file}")
                     return
 
-                # Store in cache
+                # Store in cache and evict old entries if needed
                 self._prefetch_cache[text_hash] = audio_file
+                self._evict_prefetch_cache()
                 logger.debug(f"Prefetched: {text[:30]}...")
 
             except Exception as e:
@@ -482,12 +484,21 @@ class EdgeTTSEngine(BaseTTSEngine):
             self._cleanup_file(audio_file)
         self._prefetch_cache.clear()
 
+    def _evict_prefetch_cache(self):
+        """Remove oldest entries if cache exceeds max size (LRU eviction)."""
+        while len(self._prefetch_cache) > self._prefetch_cache_max_size:
+            # dict maintains insertion order in Python 3.7+, pop first item
+            oldest_key = next(iter(self._prefetch_cache))
+            old_file = self._prefetch_cache.pop(oldest_key)
+            self._cleanup_file(old_file)
+            logger.debug(f"Evicted prefetch cache entry: {oldest_key[:8]}...")
+
     def _cleanup_file(self, filepath: str):
         """Clean up a specific audio file."""
         try:
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def _cleanup_audio(self):
@@ -497,17 +508,17 @@ class EdgeTTSEngine(BaseTTSEngine):
                 if self._audio_file and os.path.exists(self._audio_file):
                     try:
                         self._pygame.mixer.music.stop()
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
                     try:
                         self._pygame.mixer.music.unload()
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
                     # Small delay to ensure file handle is released
                     self._pygame.time.wait(50)
                     try:
                         os.remove(self._audio_file)
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
                     self._audio_file = None
             except Exception as e:
@@ -526,16 +537,17 @@ class EdgeTTSEngine(BaseTTSEngine):
         with self._mixer_lock:
             try:
                 self._pygame.mixer.music.stop()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         self._cleanup_audio()
+        self.clear_prefetch_cache()
 
     def pause(self) -> None:
         if self._speaking and not self._paused:
             with self._mixer_lock:
                 try:
                     self._pygame.mixer.music.pause()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
             self._paused = True
             logger.debug("Paused")
@@ -545,7 +557,7 @@ class EdgeTTSEngine(BaseTTSEngine):
             with self._mixer_lock:
                 try:
                     self._pygame.mixer.music.unpause()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
             self._paused = False
             logger.debug("Resumed")

@@ -40,22 +40,41 @@ try:
 except Exception:
     try:
         ctypes.windll.user32.SetProcessDPIAware()
-    except Exception:
+    except Exception:  # noqa: S110
         pass
 import keyboard
 from loguru import logger
 
 from config import (
-    STOP_HOTKEY, SPEED_UP_HOTKEY, SPEED_DOWN_HOTKEY, QUIT_HOTKEY,
-    NEXT_LINE_HOTKEY, PREV_LINE_HOTKEY, OCR_REGION_HOTKEY, MONITOR_REGION_HOTKEY,
-    RATE_STEP, MIN_RATE, MAX_RATE, load_settings, set_setting,
-    DEFAULT_SPEAK_HOTKEY, DEFAULT_PAUSE_HOTKEY, DEFAULT_LINE_DELAY,
-    DEFAULT_READ_MODE, DEFAULT_LOG_PREVIEW, DEFAULT_AUTO_COPY,
-    DEFAULT_OCR_TO_CLIPBOARD, DEFAULT_AUTO_READ,
-    DEFAULT_AUTO_READ_INTERVAL, DEFAULT_AUTO_READ_THRESHOLD
+    STOP_HOTKEY,
+    SPEED_UP_HOTKEY,
+    SPEED_DOWN_HOTKEY,
+    QUIT_HOTKEY,
+    NEXT_LINE_HOTKEY,
+    PREV_LINE_HOTKEY,
+    OCR_REGION_HOTKEY,
+    MONITOR_REGION_HOTKEY,
+    RATE_STEP,
+    MIN_RATE,
+    MAX_RATE,
+    load_settings,
+    set_setting,
+    DEFAULT_SPEAK_HOTKEY,
+    DEFAULT_PAUSE_HOTKEY,
+    DEFAULT_LINE_DELAY,
+    DEFAULT_READ_MODE,
+    DEFAULT_LOG_PREVIEW,
+    DEFAULT_AUTO_COPY,
+    DEFAULT_OCR_TO_CLIPBOARD,
+    DEFAULT_AUTO_READ,
+    DEFAULT_AUTO_READ_INTERVAL,
+    DEFAULT_AUTO_READ_THRESHOLD,
+    DEFAULT_FILTER_CODE,
+    DEFAULT_NORMALIZE_TEXT,
 )
 from tts_engine import get_engine, switch_engine, EdgeTTSEngine, Pyttsx3Engine
 from text_grab import get_content_to_speak, ocr_image
+from text_filter import filter_lines, normalize_for_speech
 from region_capture import select_and_capture
 from persistent_region import PersistentRegion, set_persistent_region
 from tray_app import TrayApp
@@ -64,15 +83,18 @@ from utils import setup_logging
 
 def safe_callback(func):
     """Wrap hotkey callback to catch exceptions and prevent hook issues."""
+
     def wrapper():
         try:
             func()
         except Exception as e:
             logger.error(f"Error in hotkey callback {func.__name__}: {e}", exc_info=True)
+
     return wrapper
 
 
 _instance_mutex = None  # Global to prevent garbage collection
+
 
 def ensure_single_instance(force: bool = False):
     """Ensure only one instance of Herald is running.
@@ -124,12 +146,15 @@ _log_preview = DEFAULT_LOG_PREVIEW  # Show text in console/logs
 _auto_copy = DEFAULT_AUTO_COPY  # Auto Ctrl+C before reading
 _ocr_to_clipboard = DEFAULT_OCR_TO_CLIPBOARD  # Copy OCR'd text to clipboard
 _auto_read = DEFAULT_AUTO_READ  # Auto-read when persistent region text changes
+_filter_code = DEFAULT_FILTER_CODE  # Filter URLs, code, paths from TTS
+_normalize_text = DEFAULT_NORMALIZE_TEXT  # Normalize snake_case, camelCase for TTS
 
 # Persistent region for continuous OCR
 _persistent_region: PersistentRegion | None = None
 
 # Queue for auto-read text (to handle from main thread)
 import queue
+
 _auto_read_queue: queue.Queue = queue.Queue()
 
 
@@ -170,11 +195,16 @@ def on_speak_hotkey():
         _speak_continuous(text)
     else:
         # Line-by-line mode (default)
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
+        lines = filter_lines(raw_lines, filter_code=_filter_code)
 
         if not lines:
-            logger.warning("No text to speak (only whitespace)")
+            logger.warning("No text to speak (only whitespace or filtered)")
             return
+
+        # Apply text normalization if enabled
+        if _normalize_text:
+            lines = [normalize_for_speech(line) for line in lines]
 
         _line_queue = lines
         _current_line_index = 0
@@ -216,11 +246,16 @@ def on_ocr_region():
     if _read_mode == "continuous":
         _speak_continuous(text)
     else:
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
+        lines = filter_lines(raw_lines, filter_code=_filter_code)
 
         if not lines:
-            logger.warning("OCR result was only whitespace")
+            logger.warning("OCR result was only whitespace or filtered")
             return
+
+        # Apply text normalization if enabled
+        if _normalize_text:
+            lines = [normalize_for_speech(line) for line in lines]
 
         _line_queue = lines
         _current_line_index = 0
@@ -236,7 +271,7 @@ def on_monitor_region_toggle():
         _persistent_region = PersistentRegion(
             on_text_detected=_on_auto_read_text,
             poll_interval=DEFAULT_AUTO_READ_INTERVAL,
-            change_threshold=DEFAULT_AUTO_READ_THRESHOLD
+            change_threshold=DEFAULT_AUTO_READ_THRESHOLD,
         )
         set_persistent_region(_persistent_region)
 
@@ -311,8 +346,12 @@ def _process_auto_read_queue():
     if _read_mode == "continuous":
         _speak_continuous(text)
     else:
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
+        lines = filter_lines(raw_lines, filter_code=_filter_code)
         if lines:
+            # Apply text normalization if enabled
+            if _normalize_text:
+                lines = [normalize_for_speech(line) for line in lines]
             _line_queue = lines
             _current_line_index = 0
             _speak_current_line()
@@ -394,7 +433,7 @@ def _clear_queue():
 
     # Clear prefetch cache if using edge-tts
     engine = get_engine()
-    if isinstance(engine, EdgeTTSEngine) and hasattr(engine, 'clear_prefetch_cache'):
+    if isinstance(engine, EdgeTTSEngine) and hasattr(engine, "clear_prefetch_cache"):
         engine.clear_prefetch_cache()
 
 
@@ -636,6 +675,32 @@ def on_auto_read_change(enabled: bool):
         engine.speak("Auto-read disabled")
 
 
+def on_filter_code_change(enabled: bool):
+    """Handle filter code toggle from tray menu."""
+    global _filter_code
+    logger.info(f"Filter code/URLs: {'enabled' if enabled else 'disabled'}")
+    _filter_code = enabled
+    set_setting("filter_code", enabled)
+    engine = get_engine()
+    if enabled:
+        engine.speak("Code and URL filtering enabled")
+    else:
+        engine.speak("Code and URL filtering disabled")
+
+
+def on_normalize_text_change(enabled: bool):
+    """Handle normalize text toggle from tray menu."""
+    global _normalize_text
+    logger.info(f"Normalize text: {'enabled' if enabled else 'disabled'}")
+    _normalize_text = enabled
+    set_setting("normalize_text", enabled)
+    engine = get_engine()
+    if enabled:
+        engine.speak("Text normalization enabled")
+    else:
+        engine.speak("Text normalization disabled")
+
+
 def on_console_toggle(visible: bool):
     """Handle console visibility toggle from tray menu."""
     global _console_visible
@@ -712,7 +777,7 @@ def update_tray_state():
     engine = get_engine()
 
     # Check if we need to auto-advance to next line
-    is_active = engine.is_speaking or engine.is_paused or (hasattr(engine, 'is_generating') and engine.is_generating)
+    is_active = engine.is_speaking or engine.is_paused or (hasattr(engine, "is_generating") and engine.is_generating)
 
     if _was_speaking and not is_active and _line_queue:
         # Just finished a line, advance to next
@@ -733,7 +798,7 @@ def update_tray_state():
         return
 
     # Check generating first (edge-tts only)
-    if hasattr(engine, 'is_generating') and engine.is_generating:
+    if hasattr(engine, "is_generating") and engine.is_generating:
         _tray_app.set_generating(True)
     elif engine.is_speaking:
         _tray_app.set_speaking(True)
@@ -748,7 +813,15 @@ def update_tray_state():
 def main():
     """Main entry point."""
     global _tray_app, _current_speak_hotkey, _current_pause_hotkey
-    global _line_delay, _read_mode, _log_preview, _auto_copy, _ocr_to_clipboard, _auto_read
+    global \
+        _line_delay, \
+        _read_mode, \
+        _log_preview, \
+        _auto_copy, \
+        _ocr_to_clipboard, \
+        _auto_read, \
+        _filter_code, \
+        _normalize_text
 
     # Check for --force flag
     force_start = "--force" in sys.argv or "-f" in sys.argv
@@ -768,6 +841,8 @@ def main():
     _auto_copy = settings.get("auto_copy", DEFAULT_AUTO_COPY)
     _ocr_to_clipboard = settings.get("ocr_to_clipboard", DEFAULT_OCR_TO_CLIPBOARD)
     _auto_read = settings.get("auto_read", DEFAULT_AUTO_READ)
+    _filter_code = settings.get("filter_code", DEFAULT_FILTER_CODE)
+    _normalize_text = settings.get("normalize_text", DEFAULT_NORMALIZE_TEXT)
 
     logger.info("Herald started")
     logger.info(f"  Speak:      {_current_speak_hotkey}")
@@ -798,6 +873,8 @@ def main():
         on_auto_copy_change=on_auto_copy_change,
         on_ocr_to_clipboard_change=on_ocr_to_clipboard_change,
         on_auto_read_change=on_auto_read_change,
+        on_filter_code_change=on_filter_code_change,
+        on_normalize_text_change=on_normalize_text_change,
         on_pause_toggle=on_pause_resume,
         on_console_toggle=on_console_toggle,
         on_speak_hotkey_change=on_speak_hotkey_change,
@@ -811,6 +888,8 @@ def main():
         current_auto_copy=_auto_copy,
         current_ocr_to_clipboard=_ocr_to_clipboard,
         current_auto_read=_auto_read,
+        current_filter_code=_filter_code,
+        current_normalize_text=_normalize_text,
         current_speak_hotkey=_current_speak_hotkey,
         current_pause_hotkey=_current_pause_hotkey,
         console_visible=True,

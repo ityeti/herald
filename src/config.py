@@ -17,20 +17,20 @@ DEFAULT_SPEAK_HOTKEY = "alt+s"
 DEFAULT_PAUSE_HOTKEY = "alt+p"
 
 # Fixed hotkeys (not configurable)
-STOP_HOTKEY = "escape"        # Stop speaking
-SPEED_UP_HOTKEY = "alt+]"     # Increase rate
-SPEED_DOWN_HOTKEY = "alt+["   # Decrease rate
-NEXT_LINE_HOTKEY = "alt+n"    # Skip to next line
-PREV_LINE_HOTKEY = "alt+b"    # Go back to previous line
-OCR_REGION_HOTKEY = "alt+o"   # OCR region capture (one-time)
+STOP_HOTKEY = "escape"  # Stop speaking
+SPEED_UP_HOTKEY = "alt+]"  # Increase rate
+SPEED_DOWN_HOTKEY = "alt+["  # Decrease rate
+NEXT_LINE_HOTKEY = "alt+n"  # Skip to next line
+PREV_LINE_HOTKEY = "alt+b"  # Go back to previous line
+OCR_REGION_HOTKEY = "alt+o"  # OCR region capture (one-time)
 MONITOR_REGION_HOTKEY = "alt+m"  # Toggle persistent OCR region
-QUIT_HOTKEY = "alt+q"         # Exit application
+QUIT_HOTKEY = "alt+q"  # Exit application
 
 # TTS defaults
-DEFAULT_RATE = 900   # Words per minute (max for online voices)
-MIN_RATE = 150       # Minimum effective for online voices
-MAX_RATE = 1500      # Maximum for offline voices
-RATE_STEP = 25       # Amount to change per speed hotkey press
+DEFAULT_RATE = 900  # Words per minute (max for online voices)
+MIN_RATE = 150  # Minimum effective for online voices
+MAX_RATE = 1500  # Maximum for offline voices
+RATE_STEP = 25  # Amount to change per speed hotkey press
 
 # Line navigation
 DEFAULT_LINE_DELAY = 0  # Milliseconds between lines (0 = no delay)
@@ -41,6 +41,10 @@ DEFAULT_LOG_PREVIEW = True  # Show text preview in console/logs
 
 # Auto-copy
 DEFAULT_AUTO_COPY = True  # Auto Ctrl+C before reading (disable for terminals)
+
+# Text filtering
+DEFAULT_FILTER_CODE = True  # Filter URLs, code, paths by default
+DEFAULT_NORMALIZE_TEXT = True  # Normalize identifiers for speech (snake_case, camelCase)
 
 # OCR settings
 DEFAULT_OCR_TO_CLIPBOARD = True  # Copy OCR'd text to clipboard
@@ -75,6 +79,8 @@ DEFAULT_SETTINGS = {
     "auto_copy": DEFAULT_AUTO_COPY,
     "ocr_to_clipboard": DEFAULT_OCR_TO_CLIPBOARD,
     "auto_read": DEFAULT_AUTO_READ,
+    "filter_code": DEFAULT_FILTER_CODE,
+    "normalize_text": DEFAULT_NORMALIZE_TEXT,
 }
 
 

@@ -10,10 +10,7 @@ from collections.abc import Callable
 from loguru import logger
 import threading
 
-from updater import (
-    get_version_string, check_for_updates_async,
-    open_releases_page, should_check_for_updates
-)
+from updater import get_version_string, check_for_updates_async, open_releases_page, should_check_for_updates
 
 
 class TrayApp:
@@ -91,6 +88,8 @@ class TrayApp:
         on_auto_copy_change: Callable[[bool], None] | None = None,
         on_ocr_to_clipboard_change: Callable[[bool], None] | None = None,
         on_auto_read_change: Callable[[bool], None] | None = None,
+        on_filter_code_change: Callable[[bool], None] | None = None,
+        on_normalize_text_change: Callable[[bool], None] | None = None,
         on_pause_toggle: Callable[[], None] | None = None,
         on_console_toggle: Callable[[bool], None] | None = None,
         on_speak_hotkey_change: Callable[[str], None] | None = None,
@@ -104,6 +103,8 @@ class TrayApp:
         current_auto_copy: bool = True,
         current_ocr_to_clipboard: bool = True,
         current_auto_read: bool = False,
+        current_filter_code: bool = True,
+        current_normalize_text: bool = True,
         current_speak_hotkey: str = "alt+s",
         current_pause_hotkey: str = "alt+p",
         console_visible: bool = True,
@@ -116,6 +117,8 @@ class TrayApp:
         self.on_auto_copy_change = on_auto_copy_change
         self.on_ocr_to_clipboard_change = on_ocr_to_clipboard_change
         self.on_auto_read_change = on_auto_read_change
+        self.on_filter_code_change = on_filter_code_change
+        self.on_normalize_text_change = on_normalize_text_change
         self.on_pause_toggle = on_pause_toggle
         self.on_console_toggle = on_console_toggle
         self.on_speak_hotkey_change = on_speak_hotkey_change
@@ -130,6 +133,8 @@ class TrayApp:
         self.current_auto_copy = current_auto_copy
         self.current_ocr_to_clipboard = current_ocr_to_clipboard
         self.current_auto_read = current_auto_read
+        self.current_filter_code = current_filter_code
+        self.current_normalize_text = current_normalize_text
         self.current_speak_hotkey = current_speak_hotkey
         self.current_pause_hotkey = current_pause_hotkey
         self.console_visible = console_visible
@@ -155,7 +160,7 @@ class TrayApp:
     def _create_icon(self, color: str) -> Image.Image:
         """Create a simple speaker icon with given color."""
         size = 64
-        image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
 
         color_map = {
@@ -197,9 +202,7 @@ class TrayApp:
         for voice_id, label in self.EDGE_VOICES:
             edge_voice_items.append(
                 pystray.MenuItem(
-                    label,
-                    self._make_voice_callback(voice_id),
-                    checked=lambda item, v=voice_id: self.current_voice == v
+                    label, self._make_voice_callback(voice_id), checked=lambda item, v=voice_id: self.current_voice == v
                 )
             )
 
@@ -208,9 +211,7 @@ class TrayApp:
         for voice_id, label in self.OFFLINE_VOICES:
             offline_voice_items.append(
                 pystray.MenuItem(
-                    label,
-                    self._make_voice_callback(voice_id),
-                    checked=lambda item, v=voice_id: self.current_voice == v
+                    label, self._make_voice_callback(voice_id), checked=lambda item, v=voice_id: self.current_voice == v
                 )
             )
 
@@ -219,9 +220,7 @@ class TrayApp:
         for speed, label in self.SPEED_PRESETS:
             speed_items.append(
                 pystray.MenuItem(
-                    label,
-                    self._make_speed_callback(speed),
-                    checked=lambda item, s=speed: self.current_speed == s
+                    label, self._make_speed_callback(speed), checked=lambda item, s=speed: self.current_speed == s
                 )
             )
 
@@ -230,9 +229,7 @@ class TrayApp:
         for delay, label in self.DELAY_PRESETS:
             delay_items.append(
                 pystray.MenuItem(
-                    label,
-                    self._make_delay_callback(delay),
-                    checked=lambda item, d=delay: self.current_line_delay == d
+                    label, self._make_delay_callback(delay), checked=lambda item, d=delay: self.current_line_delay == d
                 )
             )
 
@@ -241,23 +238,15 @@ class TrayApp:
         for mode, label in self.READ_MODES:
             read_mode_items.append(
                 pystray.MenuItem(
-                    label,
-                    self._make_read_mode_callback(mode),
-                    checked=lambda item, m=mode: self.current_read_mode == m
+                    label, self._make_read_mode_callback(mode), checked=lambda item, m=mode: self.current_read_mode == m
                 )
             )
 
         # Console submenu
         console_items = [
+            pystray.MenuItem("Visible", self._make_console_callback(True), checked=lambda item: self.console_visible),
             pystray.MenuItem(
-                "Visible",
-                self._make_console_callback(True),
-                checked=lambda item: self.console_visible
-            ),
-            pystray.MenuItem(
-                "Hidden",
-                self._make_console_callback(False),
-                checked=lambda item: not self.console_visible
+                "Hidden", self._make_console_callback(False), checked=lambda item: not self.console_visible
             ),
         ]
 
@@ -268,7 +257,7 @@ class TrayApp:
                 pystray.MenuItem(
                     label,
                     self._make_speak_hotkey_callback(hotkey),
-                    checked=lambda item, h=hotkey: self.current_speak_hotkey == h
+                    checked=lambda item, h=hotkey: self.current_speak_hotkey == h,
                 )
             )
 
@@ -279,102 +268,73 @@ class TrayApp:
                 pystray.MenuItem(
                     label,
                     self._make_pause_hotkey_callback(hotkey),
-                    checked=lambda item, h=hotkey: self.current_pause_hotkey == h
+                    checked=lambda item, h=hotkey: self.current_pause_hotkey == h,
                 )
             )
 
         return pystray.Menu(
-            pystray.MenuItem(
-                "Voice (Online)",
-                pystray.Menu(*edge_voice_items)
-            ),
-            pystray.MenuItem(
-                "Voice (Offline)",
-                pystray.Menu(*offline_voice_items)
-            ),
-            pystray.MenuItem(
-                "Speed",
-                pystray.Menu(*speed_items)
-            ),
+            pystray.MenuItem("Voice (Online)", pystray.Menu(*edge_voice_items)),
+            pystray.MenuItem("Voice (Offline)", pystray.Menu(*offline_voice_items)),
+            pystray.MenuItem("Speed", pystray.Menu(*speed_items)),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                "Read Mode",
-                pystray.Menu(*read_mode_items)
-            ),
-            pystray.MenuItem(
-                "Line Delay",
-                pystray.Menu(*delay_items)
-            ),
+            pystray.MenuItem("Read Mode", pystray.Menu(*read_mode_items)),
+            pystray.MenuItem("Line Delay", pystray.Menu(*delay_items)),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Pause" if not self.is_paused else "Resume",
                 self._on_pause_toggle,
-                enabled=self.is_speaking or self.is_paused
+                enabled=self.is_speaking or self.is_paused,
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Hotkeys",
                 pystray.Menu(
-                    pystray.MenuItem(
-                        "Speak",
-                        pystray.Menu(*speak_hotkey_items)
-                    ),
-                    pystray.MenuItem(
-                        "Pause",
-                        pystray.Menu(*pause_hotkey_items)
-                    ),
-                )
+                    pystray.MenuItem("Speak", pystray.Menu(*speak_hotkey_items)),
+                    pystray.MenuItem("Pause", pystray.Menu(*pause_hotkey_items)),
+                ),
+            ),
+            pystray.MenuItem("Console", pystray.Menu(*console_items)),
+            pystray.MenuItem(
+                "Show Text Preview", self._on_log_preview_toggle, checked=lambda item: self.current_log_preview
             ),
             pystray.MenuItem(
-                "Console",
-                pystray.Menu(*console_items)
-            ),
-            pystray.MenuItem(
-                "Show Text Preview",
-                self._on_log_preview_toggle,
-                checked=lambda item: self.current_log_preview
-            ),
-            pystray.MenuItem(
-                "Grab & Speak Selection",
-                self._on_auto_copy_toggle,
-                checked=lambda item: self.current_auto_copy
+                "Grab & Speak Selection", self._on_auto_copy_toggle, checked=lambda item: self.current_auto_copy
             ),
             pystray.MenuItem(
                 "Copy OCR to Clipboard",
                 self._on_ocr_to_clipboard_toggle,
-                checked=lambda item: self.current_ocr_to_clipboard
+                checked=lambda item: self.current_ocr_to_clipboard,
             ),
             pystray.MenuItem(
-                "Auto-Read Monitor Region",
-                self._on_auto_read_toggle,
-                checked=lambda item: self.current_auto_read
+                "Auto-Read Monitor Region", self._on_auto_read_toggle, checked=lambda item: self.current_auto_read
+            ),
+            pystray.MenuItem(
+                "Filter Code/URLs", self._on_filter_code_toggle, checked=lambda item: self.current_filter_code
+            ),
+            pystray.MenuItem(
+                "Normalize Text", self._on_normalize_text_toggle, checked=lambda item: self.current_normalize_text
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 self._get_about_label(),
                 pystray.Menu(
-                    pystray.MenuItem(
-                        "Check for Updates",
-                        self._on_check_updates
-                    ),
+                    pystray.MenuItem("Check for Updates", self._on_check_updates),
                     pystray.MenuItem(
                         "Download Update" if self.update_available else "No Updates Available",
                         self._on_download_update,
-                        enabled=self.update_available
+                        enabled=self.update_available,
                     ),
                     pystray.Menu.SEPARATOR,
-                    pystray.MenuItem(
-                        "GitHub Releases",
-                        self._on_open_releases
-                    ),
-                )
+                    pystray.MenuItem("GitHub Releases", self._on_open_releases),
+                ),
             ),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Quit", self._on_quit)
+            pystray.MenuItem("Quit", self._on_quit),
         )
 
     def _make_voice_callback(self, voice_id: str):
         """Create callback for voice selection."""
+
         def callback():
             if voice_id != self.current_voice:
                 logger.info(f"Voice change: {voice_id}")
@@ -382,10 +342,12 @@ class TrayApp:
                 if self.on_voice_change:
                     self.on_voice_change(voice_id)
                 self._refresh_menu()
+
         return callback
 
     def _make_speed_callback(self, speed: int):
         """Create callback for speed selection."""
+
         def callback():
             if speed != self.current_speed:
                 logger.info(f"Speed change: {speed}")
@@ -393,10 +355,12 @@ class TrayApp:
                 if self.on_speed_change:
                     self.on_speed_change(speed)
                 self._refresh_menu()
+
         return callback
 
     def _make_delay_callback(self, delay: int):
         """Create callback for line delay selection."""
+
         def callback():
             if delay != self.current_line_delay:
                 logger.info(f"Line delay change: {delay}ms")
@@ -404,10 +368,12 @@ class TrayApp:
                 if self.on_line_delay_change:
                     self.on_line_delay_change(delay)
                 self._refresh_menu()
+
         return callback
 
     def _make_read_mode_callback(self, mode: str):
         """Create callback for read mode selection."""
+
         def callback():
             if mode != self.current_read_mode:
                 logger.info(f"Read mode change: {mode}")
@@ -415,6 +381,7 @@ class TrayApp:
                 if self.on_read_mode_change:
                     self.on_read_mode_change(mode)
                 self._refresh_menu()
+
         return callback
 
     def _on_log_preview_toggle(self):
@@ -449,8 +416,25 @@ class TrayApp:
             self.on_auto_read_change(self.current_auto_read)
         self._refresh_menu()
 
+    def _on_filter_code_toggle(self):
+        """Toggle code/URL filtering on/off."""
+        self.current_filter_code = not self.current_filter_code
+        logger.info(f"Filter code/URLs: {self.current_filter_code}")
+        if self.on_filter_code_change:
+            self.on_filter_code_change(self.current_filter_code)
+        self._refresh_menu()
+
+    def _on_normalize_text_toggle(self):
+        """Toggle text normalization on/off."""
+        self.current_normalize_text = not self.current_normalize_text
+        logger.info(f"Normalize text: {self.current_normalize_text}")
+        if self.on_normalize_text_change:
+            self.on_normalize_text_change(self.current_normalize_text)
+        self._refresh_menu()
+
     def _make_console_callback(self, visible: bool):
         """Create callback for console visibility."""
+
         def callback():
             if visible != self.console_visible:
                 logger.info(f"Console visibility: {visible}")
@@ -458,10 +442,12 @@ class TrayApp:
                 if self.on_console_toggle:
                     self.on_console_toggle(visible)
                 self._refresh_menu()
+
         return callback
 
     def _make_speak_hotkey_callback(self, hotkey: str):
         """Create callback for speak hotkey selection."""
+
         def callback():
             if hotkey != self.current_speak_hotkey:
                 logger.info(f"Speak hotkey: {hotkey}")
@@ -469,10 +455,12 @@ class TrayApp:
                 if self.on_speak_hotkey_change:
                     self.on_speak_hotkey_change(hotkey)
                 self._refresh_menu()
+
         return callback
 
     def _make_pause_hotkey_callback(self, hotkey: str):
         """Create callback for pause hotkey selection."""
+
         def callback():
             if hotkey != self.current_pause_hotkey:
                 logger.info(f"Pause hotkey: {hotkey}")
@@ -480,6 +468,7 @@ class TrayApp:
                 if self.on_pause_hotkey_change:
                     self.on_pause_hotkey_change(hotkey)
                 self._refresh_menu()
+
         return callback
 
     def _on_pause_toggle(self):
@@ -523,6 +512,7 @@ class TrayApp:
     def check_for_updates_on_startup(self):
         """Check for updates silently on startup if enough time has passed."""
         if should_check_for_updates():
+
             def on_result(available, version, url):
                 self.update_available = available
                 self.update_version = version
@@ -606,12 +596,7 @@ class TrayApp:
 
         def run():
             try:
-                self.icon = pystray.Icon(
-                    "Herald",
-                    self.icons["idle"],
-                    "Herald TTS",
-                    self._create_menu()
-                )
+                self.icon = pystray.Icon("Herald", self.icons["idle"], "Herald TTS", self._create_menu())
                 self.icon.run()
             except Exception as e:
                 logger.error(f"Tray app error: {e}")
@@ -621,6 +606,7 @@ class TrayApp:
 
         # Wait for icon to be ready
         import time
+
         max_wait = 5
         waited = 0
         while self.icon is None and waited < max_wait:
@@ -661,11 +647,7 @@ if __name__ == "__main__":
         print("Quit requested")
         sys.exit(0)
 
-    app = TrayApp(
-        on_voice_change=on_voice,
-        on_speed_change=on_speed,
-        on_quit=on_quit
-    )
+    app = TrayApp(on_voice_change=on_voice, on_speed_change=on_speed, on_quit=on_quit)
 
     app.start_async()
 
