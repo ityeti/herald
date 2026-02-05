@@ -204,7 +204,7 @@ def on_speak_hotkey():
 
         # Apply text normalization if enabled
         if _normalize_text:
-            lines = [normalize_for_speech(line) for line in lines]
+            lines = [normalize_for_speech(line, filter_paths_urls=_filter_code) for line in lines]
 
         _line_queue = lines
         _current_line_index = 0
@@ -255,7 +255,7 @@ def on_ocr_region():
 
         # Apply text normalization if enabled
         if _normalize_text:
-            lines = [normalize_for_speech(line) for line in lines]
+            lines = [normalize_for_speech(line, filter_paths_urls=_filter_code) for line in lines]
 
         _line_queue = lines
         _current_line_index = 0
@@ -351,7 +351,7 @@ def _process_auto_read_queue():
         if lines:
             # Apply text normalization if enabled
             if _normalize_text:
-                lines = [normalize_for_speech(line) for line in lines]
+                lines = [normalize_for_speech(line, filter_paths_urls=_filter_code) for line in lines]
             _line_queue = lines
             _current_line_index = 0
             _speak_current_line()

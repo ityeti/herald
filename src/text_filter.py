@@ -163,19 +163,57 @@ MENTION_PATTERN = re.compile(r"@(\w+)")  # @user -> user
 # Email pattern for filtering standalone email lines
 EMAIL_PATTERN = re.compile(r"^[\s]*[\w.-]+@[\w.-]+\.\w+[\s]*$", re.IGNORECASE)
 
+# Patterns for inline URL/path detection (embedded in sentences)
+INLINE_URL_PATTERN = re.compile(r'https?://[^\s<>"\')\]]+|www\.[^\s<>"\')\]]+', re.IGNORECASE)
+INLINE_PATH_PATTERN = re.compile(
+    r'[A-Za-z]:\\[^\s<>"\')\]]+|'  # Windows: C:\path
+    r'(?<!\w)/(?:usr|home|var|etc|tmp|opt|mnt|dev)[^\s<>"\')\]]*|'  # Unix common dirs
+    r'(?<!\w)\.{1,2}/[^\s<>"\')\]]+',  # Relative ./path or ../path
+    re.IGNORECASE,
+)
 
-def normalize_for_speech(text: str) -> str:
+
+def remove_inline_urls_and_paths(text: str) -> str:
+    """Remove URLs and file paths embedded in text.
+
+    Removes inline URLs (http://, https://, www.) and file paths (C:\\..., /usr/..., ./...)
+    from within sentences, leaving the surrounding text readable.
+
+    Args:
+        text: Text potentially containing inline URLs and paths
+
+    Returns:
+        Text with URLs and paths removed
+
+    Examples:
+        "Check the file at C:\\Users\\docs\\file.txt for details" -> "Check the file at for details"
+        "See https://github.com/user/repo please" -> "See please"
+        "The config is in ./src/config.py" -> "The config is in"
+    """
+    if not text:
+        return text
+
+    result = INLINE_URL_PATTERN.sub("", text)
+    result = INLINE_PATH_PATTERN.sub("", result)
+    # Clean up double spaces left behind
+    result = re.sub(r" {2,}", " ", result)
+    return result.strip()
+
+
+def normalize_for_speech(text: str, filter_paths_urls: bool = False) -> str:
     """Transform text to read more naturally for TTS.
 
     Applies the following transformations:
-    1. Strip ANSI escape codes (terminal colors)
-    2. Strip markdown formatting (**bold**, __bold__, `code`, ~~strike~~)
-    3. Convert snake_case to spaces
-    4. Convert camelCase/PascalCase to spaces
-    5. Simplify repeated punctuation
+    1. (Optional) Remove inline URLs and file paths
+    2. Strip ANSI escape codes (terminal colors)
+    3. Strip markdown formatting (**bold**, __bold__, `code`, ~~strike~~)
+    4. Convert snake_case to spaces
+    5. Convert camelCase/PascalCase to spaces
+    6. Simplify repeated punctuation
 
     Args:
         text: Text to normalize
+        filter_paths_urls: If True, remove inline URLs and file paths
 
     Returns:
         Normalized text suitable for TTS
@@ -184,6 +222,10 @@ def normalize_for_speech(text: str) -> str:
         return text
 
     result = text
+
+    # 0. Remove inline URLs and paths if enabled
+    if filter_paths_urls:
+        result = remove_inline_urls_and_paths(result)
 
     # 1. Strip ANSI escape codes
     result = ANSI_ESCAPE_PATTERN.sub("", result)
@@ -431,3 +473,19 @@ if __name__ == "__main__":
     for text, description in normalize_tests:
         normalized = normalize_for_speech(text)
         print(f"  {description}: '{text}' -> '{normalized}'")
+
+    print("\n--- Inline URL/path removal tests ---")
+    inline_tests = [
+        ("Check the file at C:\\Users\\ityet\\docs\\report.txt for details", "Windows path in sentence"),
+        ("See https://github.com/ityeti/herald for details", "URL in sentence"),
+        ("The config is in ./src/config.py", "Relative path in sentence"),
+        ("Visit www.example.com for more info", "www URL in sentence"),
+        ("Check /usr/local/bin/python please", "Unix path in sentence"),
+        ("Look at ../parent/file.txt now", "Parent path in sentence"),
+        ("No paths or URLs here", "No paths/URLs (unchanged)"),
+    ]
+    for text, description in inline_tests:
+        filtered = remove_inline_urls_and_paths(text)
+        print(f"  {description}:")
+        print(f"    Input:  '{text}'")
+        print(f"    Output: '{filtered}'")
