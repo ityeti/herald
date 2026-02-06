@@ -516,6 +516,7 @@ class EdgeTTSEngine(BaseTTSEngine):
 
     def _cleanup_audio(self):
         """Clean up current audio file."""
+        file_to_delete = None
         with self._mixer_lock:
             try:
                 if self._audio_file and os.path.exists(self._audio_file):
@@ -527,15 +528,18 @@ class EdgeTTSEngine(BaseTTSEngine):
                         self._pygame.mixer.music.unload()
                     except Exception:  # noqa: S110
                         pass
-                    # Small delay to ensure file handle is released
-                    self._pygame.time.wait(50)
-                    try:
-                        os.remove(self._audio_file)
-                    except Exception:  # noqa: S110
-                        pass
+                    file_to_delete = self._audio_file
                     self._audio_file = None
             except Exception as e:
                 logger.debug(f"Cleanup error (safe to ignore): {e}")
+
+        # File deletion outside the lock — no need to hold mixer lock for I/O
+        if file_to_delete:
+            self._pygame.time.wait(50)  # Wait for file handle release
+            try:
+                os.remove(file_to_delete)
+            except Exception:  # noqa: S110
+                pass
 
     @property
     def is_generating(self) -> bool:

@@ -148,6 +148,14 @@ import queue
 
 _auto_read_queue: queue.Queue = queue.Queue()
 
+# Action queue: hotkey callbacks dispatch here instead of doing work directly.
+# This prevents Windows from removing the low-level keyboard hook when
+# a callback blocks too long (e.g., waiting on mixer lock or clipboard).
+_action_queue: queue.Queue = queue.Queue()
+
+# Heartbeat tracking for diagnostics
+_last_heartbeat = 0.0
+
 
 def on_speak_hotkey():
     """Called when the speak hotkey is pressed."""
@@ -348,6 +356,39 @@ def _process_auto_read_queue():
             _line_queue = lines
             _current_line_index = 0
             _speak_current_line()
+
+
+def _process_action_queue():
+    """Process queued actions from hotkey callbacks (runs in main thread).
+
+    Hotkey callbacks dispatch to this queue instead of doing work directly.
+    This ensures the keyboard hook thread is never blocked, preventing
+    Windows from silently removing the low-level keyboard hook.
+    """
+    while True:
+        try:
+            setting_key = _action_queue.get_nowait()
+        except queue.Empty:
+            return
+
+        if setting_key in _HOTKEY_REGISTRY:
+            callback, _ = _HOTKEY_REGISTRY[setting_key]
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f"Error processing {setting_key}: {e}", exc_info=True)
+
+
+def _maybe_log_heartbeat():
+    """Log periodic heartbeat for diagnostics."""
+    global _last_heartbeat
+    now = time.time()
+    if now - _last_heartbeat >= 60:
+        _last_heartbeat = now
+        engine = get_engine()
+        logger.debug(
+            f"Heartbeat: queue_len={len(_line_queue)}, speaking={engine.is_speaking}, paused={engine.is_paused}"
+        )
 
 
 def _speak_continuous(text: str):
@@ -738,10 +779,19 @@ def _init_hotkey_registry():
 
 
 def register_hotkey(setting_key: str, hotkey_string: str):
-    """Register a single hotkey by its setting key."""
-    callback, suppress_default = _HOTKEY_REGISTRY[setting_key]
+    """Register a single hotkey by its setting key.
+
+    Hotkey callbacks dispatch to the action queue instead of doing work
+    directly. This ensures the keyboard hook thread returns instantly,
+    preventing Windows from silently removing the low-level hook.
+    """
+    _, suppress_default = _HOTKEY_REGISTRY[setting_key]
     should_suppress = suppress_default or ("]" in hotkey_string or "[" in hotkey_string)
-    keyboard.add_hotkey(hotkey_string, safe_callback(callback), suppress=should_suppress)
+
+    def queued_callback():
+        _action_queue.put(setting_key)
+
+    keyboard.add_hotkey(hotkey_string, queued_callback, suppress=should_suppress)
 
 
 def unregister_hotkey(hotkey_string: str):
@@ -837,6 +887,11 @@ def update_tray_state():
         else:
             logger.info("Finished all lines")
             _clear_queue()
+            # Reset tray state immediately so icon doesn't stay "active"
+            if _tray_app:
+                _tray_app.set_speaking(False)
+                _tray_app.set_paused(False)
+                _tray_app.set_generating(False)
 
     _was_speaking = is_active
 
@@ -940,11 +995,14 @@ def main():
     register_all_hotkeys()
 
     try:
-        # Main loop - poll for quit and update tray state
+        # Main loop - poll for quit, process hotkey actions, update state
+        # 50ms sleep keeps hotkey response snappy without wasting CPU
         while not _quit_requested:
+            _process_action_queue()  # Handle hotkey actions (queued for non-blocking)
             update_tray_state()
             _process_auto_read_queue()  # Handle auto-read from main thread
-            time.sleep(0.1)
+            _maybe_log_heartbeat()
+            time.sleep(0.05)
     except KeyboardInterrupt:
         logger.info("Ctrl+C - exiting")
     except Exception as e:
