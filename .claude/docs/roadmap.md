@@ -46,7 +46,7 @@ Feature tracking and version history for Herald.
 - Voice profiles — save/load voice+speed combos for quick switching (e.g., "Reading" = Aria 400wpm, "Skim" = Guy 700wpm)
 - MP3 export — save TTS output as audio file (personal use only due to edge-tts voice licensing)
 - Position memory for ebook-style reading experience (low priority)
-- Unified desktop app with Whisper-typer — see `c:\dev\dev-oversight\.claude\docs\someday-maybe.md` for details
+- Unified desktop app with Whisper-typer — see `c:\projects\dev-oversight\.claude\docs\someday-maybe.md` for details
 
 ## Known Issues
 

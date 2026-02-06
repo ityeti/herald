@@ -5,7 +5,7 @@ This folder contains scripts to build Herald as a standalone Windows executable.
 ## Quick Build
 
 ```batch
-cd C:\dev\herald
+cd C:\projects\herald
 packaging\build.bat
 ```
 
