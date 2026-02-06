@@ -38,7 +38,7 @@ repos:
       # Run unit tests (fast)
       - id: unit-tests
         name: Run unit tests
-        entry: powershell -Command "& 'C:\dev\herald\venv\Scripts\pytest.exe' tests/ -m 'not slow' --tb=short -q"
+        entry: python -m pytest tests/ -m 'not slow' --tb=short -q
         language: system
         pass_filenames: false
         always_run: true
