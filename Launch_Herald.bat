@@ -21,24 +21,29 @@ echo   Herald - Text-to-Speech
 echo ========================================
 echo.
 
-:: Check for Python
-where python >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Python not found in PATH.
-    echo.
-    echo Please install Python 3.10+ from:
-    echo   https://www.python.org/downloads/
-    echo.
-    echo Make sure to check "Add Python to PATH" during installation.
-    echo.
-    pause
-    exit /b 1
-)
+:: Find Python - prefer 'python' in PATH, fall back to 'py' launcher
+set "PYTHON_CMD="
+python --version >nul 2>&1
+if %errorlevel% == 0 set "PYTHON_CMD=python"
+if defined PYTHON_CMD goto :found_python
+py -3 --version >nul 2>&1
+if %errorlevel% == 0 set "PYTHON_CMD=py -3"
+if defined PYTHON_CMD goto :found_python
+echo [ERROR] Python not found.
+echo.
+echo Please install Python 3.10+ from:
+echo   https://www.python.org/downloads/
+echo.
+echo Make sure to check "Add Python to PATH" during installation.
+echo.
+pause
+exit /b 1
+:found_python
 
 :: Check if venv exists
 if not exist "venv\Scripts\python.exe" (
     echo [Setup] Creating virtual environment...
-    python -m venv venv
+    %PYTHON_CMD% -m venv venv
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to create virtual environment.
         pause
