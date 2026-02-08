@@ -379,16 +379,68 @@ def _process_action_queue():
                 logger.error(f"Error processing {setting_key}: {e}", exc_info=True)
 
 
+def _check_keyboard_hook_alive() -> bool:
+    """Check if the keyboard library's hook thread is still running."""
+    try:
+        listener = getattr(keyboard, "_listener", None)
+        if listener and hasattr(listener, "listening_thread"):
+            thread = listener.listening_thread
+            if thread and not thread.is_alive():
+                return False
+        return True
+    except Exception:
+        return True  # Assume OK if we can't check
+
+
+def _recover_keyboard_hooks():
+    """Re-register all keyboard hooks after hook thread death."""
+    try:
+        keyboard.unhook_all()
+    except Exception:
+        logger.debug("unhook_all failed during recovery (expected if hook thread dead)")
+    try:
+        register_all_hotkeys()
+        logger.info("Keyboard hooks re-registered successfully")
+    except Exception as e:
+        logger.error(f"Failed to re-register hooks: {e}")
+
+
 def _maybe_log_heartbeat():
-    """Log periodic heartbeat for diagnostics."""
+    """Log periodic heartbeat with audio, hook, and thread health."""
     global _last_heartbeat
     now = time.time()
     if now - _last_heartbeat >= 60:
         _last_heartbeat = now
         engine = get_engine()
+
+        # Audio health
+        mixer_ok = True
+        if hasattr(engine, "check_mixer_health"):
+            mixer_ok = engine.check_mixer_health()
+
+        # Keyboard hook thread health
+        hook_alive = _check_keyboard_hook_alive()
+
+        # Speak thread age
+        thread_age = getattr(engine, "speak_thread_age", 0)
+
         logger.debug(
-            f"Heartbeat: queue_len={len(_line_queue)}, speaking={engine.is_speaking}, paused={engine.is_paused}"
+            f"Heartbeat: queue_len={len(_line_queue)}, "
+            f"speaking={engine.is_speaking}, paused={engine.is_paused}, "
+            f"mixer_ok={mixer_ok}, hook_alive={hook_alive}"
         )
+
+        if thread_age > 60:
+            logger.warning(f"Speak thread stuck for {thread_age:.0f}s")
+
+        # Auto-recovery: reinitialize mixer if dead
+        if not mixer_ok and hasattr(engine, "reinitialize_mixer"):
+            engine.reinitialize_mixer()
+
+        # Auto-recovery: re-register hooks if dead
+        if not hook_alive:
+            logger.warning("Keyboard hook thread dead - re-registering hotkeys")
+            _recover_keyboard_hooks()
 
 
 def _speak_continuous(text: str):
@@ -912,6 +964,155 @@ def update_tray_state():
         _tray_app.set_generating(False)
 
 
+def _start_session_monitor():
+    """Start a background thread to monitor RDP session changes via Win32 API."""
+    import threading
+
+    def _monitor():
+        try:
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            wtsapi32 = ctypes.windll.wtsapi32
+
+            # Set argtypes for DefWindowProcW so ctypes handles 64-bit LPARAM correctly
+            user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+            user32.DefWindowProcW.restype = ctypes.c_longlong
+
+            # Session change constants
+            WM_WTSSESSION_CHANGE = 0x02B1
+            WTS_CONSOLE_CONNECT = 0x1
+            WTS_CONSOLE_DISCONNECT = 0x2
+            WTS_REMOTE_CONNECT = 0x3
+            WTS_REMOTE_DISCONNECT = 0x4
+            WTS_SESSION_LOGON = 0x5
+            WTS_SESSION_LOGOFF = 0x6
+            WTS_SESSION_LOCK = 0x7
+            WTS_SESSION_UNLOCK = 0x8
+            NOTIFY_FOR_THIS_SESSION = 0
+            WM_DESTROY = 0x0002
+
+            SESSION_EVENTS = {
+                WTS_CONSOLE_CONNECT: "Console connect",
+                WTS_CONSOLE_DISCONNECT: "Console disconnect",
+                WTS_REMOTE_CONNECT: "RDP connect",
+                WTS_REMOTE_DISCONNECT: "RDP disconnect",
+                WTS_SESSION_LOGON: "Session logon",
+                WTS_SESSION_LOGOFF: "Session logoff",
+                WTS_SESSION_LOCK: "Session lock",
+                WTS_SESSION_UNLOCK: "Session unlock",
+            }
+
+            # Define WNDPROC callback type
+            WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_long, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+
+            def _reinit_mixer_after_delay():
+                """Reinitialize the audio mixer after a delay to let the new audio device stabilize."""
+                import time
+
+                time.sleep(1.5)
+                try:
+                    from tts_engine import get_engine, EdgeTTSEngine
+
+                    engine = get_engine()
+                    if isinstance(engine, EdgeTTSEngine):
+                        logger.info("Session change detected — reinitializing audio mixer")
+                        engine.reinitialize_mixer()
+                except Exception as e:
+                    logger.warning(f"Mixer reinit on session change failed: {e}")
+
+            def wnd_proc(hwnd, msg, wparam, lparam):
+                if msg == WM_WTSSESSION_CHANGE:
+                    event_name = SESSION_EVENTS.get(wparam, f"Unknown({wparam})")
+                    logger.info(f"Session event: {event_name} (session_id={lparam})")
+
+                    # Reinitialize audio mixer on session transitions so audio
+                    # follows the new default device (e.g., RDP virtual device)
+                    if wparam in (WTS_REMOTE_CONNECT, WTS_CONSOLE_CONNECT):
+                        threading.Thread(
+                            target=_reinit_mixer_after_delay,
+                            daemon=True,
+                            name="MixerReinit",
+                        ).start()
+                elif msg == WM_DESTROY:
+                    user32.PostQuitMessage(0)
+                    return 0
+                return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
+
+            # Must keep a reference to prevent garbage collection
+            wnd_proc_cb = WNDPROC(wnd_proc)
+
+            # Register window class
+            class WNDCLASSW(ctypes.Structure):
+                _fields_ = [
+                    ("style", wintypes.UINT),
+                    ("lpfnWndProc", WNDPROC),
+                    ("cbClsExtra", ctypes.c_int),
+                    ("cbWndExtra", ctypes.c_int),
+                    ("hInstance", wintypes.HINSTANCE),
+                    ("hIcon", wintypes.HANDLE),
+                    ("hCursor", wintypes.HANDLE),
+                    ("hbrBackground", wintypes.HANDLE),
+                    ("lpszMenuName", wintypes.LPCWSTR),
+                    ("lpszClassName", wintypes.LPCWSTR),
+                ]
+
+            wc = WNDCLASSW()
+            wc.lpfnWndProc = wnd_proc_cb
+            wc.lpszClassName = "HeraldSessionMonitor"
+            kernel32 = ctypes.windll.kernel32
+            kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+            kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+            wc.hInstance = kernel32.GetModuleHandleW(None)
+
+            class_atom = user32.RegisterClassW(ctypes.byref(wc))
+            if not class_atom:
+                logger.error("Failed to register session monitor window class")
+                return
+
+            # Create message-only window (HWND_MESSAGE parent)
+            HWND_MESSAGE = ctypes.c_void_p(-3)
+            user32.CreateWindowExW.argtypes = [
+                wintypes.DWORD,
+                wintypes.LPCWSTR,
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+                wintypes.HWND,
+                wintypes.HMENU,
+                wintypes.HINSTANCE,
+                wintypes.LPVOID,
+            ]
+            user32.CreateWindowExW.restype = wintypes.HWND
+            hwnd = user32.CreateWindowExW(
+                0, wc.lpszClassName, "HeraldSessionMonitor", 0, 0, 0, 0, 0, HWND_MESSAGE, None, wc.hInstance, None
+            )
+            if not hwnd:
+                logger.error("Failed to create session monitor window")
+                return
+
+            # Register for session notifications
+            if not wtsapi32.WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION):
+                logger.warning("WTSRegisterSessionNotification failed - session events may not be captured")
+
+            logger.info("Session monitor started")
+
+            # Message pump
+            msg = wintypes.MSG()
+            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+
+        except Exception as e:
+            logger.error(f"Session monitor failed: {e}")
+
+    thread = threading.Thread(target=_monitor, daemon=True, name="session_monitor")
+    thread.start()
+
+
 def main():
     """Main entry point."""
     global _tray_app, _current_hotkeys
@@ -993,6 +1194,9 @@ def main():
     # Initialize hotkey registry and register all from settings
     _init_hotkey_registry()
     register_all_hotkeys()
+
+    # Start RDP/session change monitor for diagnostics
+    _start_session_monitor()
 
     try:
         # Main loop - poll for quit, process hotkey actions, update state

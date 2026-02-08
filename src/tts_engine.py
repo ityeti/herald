@@ -8,6 +8,7 @@ Abstraction layer supporting multiple TTS backends:
 
 import asyncio
 import os
+import time
 import threading
 from abc import ABC, abstractmethod
 from loguru import logger
@@ -260,6 +261,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._paused = False
         self._audio_file: str | None = None
         self._thread: threading.Thread | None = None
+        self._thread_start_time: float = 0.0  # When current speak thread started
         self._file_counter = 0  # Unique filename counter to avoid race conditions
         self._stop_requested = False  # Signal to stop current generation
 
@@ -418,7 +420,10 @@ class EdgeTTSEngine(BaseTTSEngine):
                         _speak_error("Audio playback failed.")
                         return
 
-                # Wait for playback to complete
+                # Wait for playback to complete (with timeout to prevent hang
+                # when audio device disappears, e.g. RDP disconnect)
+                playback_start = time.time()
+                PLAYBACK_TIMEOUT = 30  # seconds
                 while True:
                     with self._mixer_lock:
                         try:
@@ -428,6 +433,9 @@ class EdgeTTSEngine(BaseTTSEngine):
                     if not busy and not self._paused:
                         break
                     if not self._speaking:
+                        break
+                    if time.time() - playback_start > PLAYBACK_TIMEOUT:
+                        logger.warning("Playback timeout - audio device may be unavailable")
                         break
                     self._pygame.time.wait(100)
 
@@ -439,6 +447,7 @@ class EdgeTTSEngine(BaseTTSEngine):
                 self._speaking = False
                 self._cleanup_audio()
 
+        self._thread_start_time = time.time()
         self._thread = threading.Thread(target=_speak_thread, daemon=True)
         self._thread.start()
 
@@ -546,6 +555,13 @@ class EdgeTTSEngine(BaseTTSEngine):
         """Whether currently generating audio (before playback)."""
         return self._generating
 
+    @property
+    def speak_thread_age(self) -> float:
+        """How long the current speak thread has been running (seconds). 0 if not running."""
+        if self._thread and self._thread.is_alive():
+            return time.time() - self._thread_start_time
+        return 0.0
+
     def stop(self) -> None:
         self._stop_requested = True
         self._generating = False
@@ -606,6 +622,40 @@ class EdgeTTSEngine(BaseTTSEngine):
         if name in self.VOICES:
             self._voice_name = name
             set_setting("voice", self._voice_name)
+
+    def check_mixer_health(self) -> bool:
+        """Check if pygame mixer is still functional."""
+        try:
+            with self._mixer_lock:
+                init = self._pygame.mixer.get_init()
+            if init is None:
+                logger.warning("Pygame mixer lost - not initialized")
+                return False
+            return True
+        except Exception as e:
+            logger.warning(f"Pygame mixer health check failed: {e}")
+            return False
+
+    def reinitialize_mixer(self) -> bool:
+        """Reinitialize pygame mixer after audio device loss."""
+        logger.info("Attempting mixer reinitialization...")
+        with self._mixer_lock:
+            try:
+                self._pygame.mixer.quit()
+            except Exception:
+                logger.debug("mixer.quit() failed during reinit (expected if mixer already dead)")
+            try:
+                self._pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+                init = self._pygame.mixer.get_init()
+                if init:
+                    logger.info(f"Mixer reinitialized: freq={init[0]}, format={init[1]}, channels={init[2]}")
+                    return True
+                else:
+                    logger.error("Mixer reinitialization returned None")
+                    return False
+            except Exception as e:
+                logger.error(f"Mixer reinitialization failed: {e}")
+                return False
 
     def get_available_voices(self) -> list[str]:
         return list(self.VOICES.keys())
