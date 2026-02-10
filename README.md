@@ -227,6 +227,8 @@ Settings are saved to `config/settings.json`:
 | **Edge TTS** | Cloud neural | Yes | 4 | 150-900 wpm | Microsoft Edge voices. Not for commercial use. |
 | **SAPI** | Windows built-in | No | 2 | 150-1500 wpm | Basic offline fallback. |
 
+> **Note:** Edge TTS uses Microsoft Edge's neural voices for **personal and educational use only**. For commercial use, switch to Kokoro (default) or SAPI.
+
 ## Available Voices
 
 ### Kokoro (local neural — default)
