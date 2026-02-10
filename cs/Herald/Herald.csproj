@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Herald</AssemblyName>
+    <RootNamespace>Herald</RootNamespace>
+
+    <!-- Publishing: dotnet publish -c Release -r win-x64 -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+
+    <!-- Assembly info -->
+    <Version>0.3.0</Version>
+    <Authors>ityeti</Authors>
+    <Description>Text-to-speech utility for Windows</Description>
+  </PropertyGroup>
+
+  <!-- NuGet packages -->
+  <ItemGroup>
+    <PackageReference Include="System.Speech" Version="8.0.*" />
+    <PackageReference Include="NAudio" Version="2.2.*" />
+    <PackageReference Include="Serilog" Version="4.2.*" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.*" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.*" />
+  </ItemGroup>
+
+</Project>
