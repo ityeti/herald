@@ -37,6 +37,23 @@ public sealed class TrayIcon : IDisposable
     public Action<string, string>? OnHotkeyChange { get; set; }
     public Action? OnResetHotkeys { get; set; }
 
+    // Kokoro voices (best quality first)
+    public static readonly (string id, string label)[] KokoroVoices =
+    [
+        ("heart", "Heart (Female, Premium)"),
+        ("bella", "Bella (Female)"),
+        ("nicole", "Nicole (Female)"),
+        ("sarah", "Sarah (Female)"),
+        ("nova", "Nova (Female)"),
+        ("sky", "Sky (Female)"),
+        ("michael", "Michael (Male)"),
+        ("fenrir", "Fenrir (Male)"),
+        ("puck", "Puck (Male)"),
+        ("adam", "Adam (Male)"),
+        ("emma", "Emma (British Female)"),
+        ("daniel", "Daniel (British Male)"),
+    ];
+
     // Edge voices
     public static readonly (string id, string label)[] EdgeVoices =
     [
@@ -46,8 +63,8 @@ public sealed class TrayIcon : IDisposable
         ("christopher", "Christopher (Male)"),
     ];
 
-    // Offline voices
-    public static readonly (string id, string label)[] OfflineVoices =
+    // SAPI voices
+    public static readonly (string id, string label)[] SapiVoices =
     [
         ("zira", "Zira (Female, Offline)"),
         ("david", "David (Male, Offline)"),
@@ -204,15 +221,22 @@ public sealed class TrayIcon : IDisposable
 
         // --- Engine ---
         var engineMenu = new ToolStripMenuItem("Engine");
+        AddRadioItem(engineMenu, "Kokoro (Local Neural)", settings.Engine == "kokoro",
+            () => OnEngineChange?.Invoke("kokoro"));
         AddRadioItem(engineMenu, "Edge (Online)", settings.Engine == "edge",
             () => OnEngineChange?.Invoke("edge"));
-        AddRadioItem(engineMenu, "SAPI (Offline)", settings.Engine != "edge",
+        AddRadioItem(engineMenu, "SAPI (Offline)", settings.Engine == "pyttsx3",
             () => OnEngineChange?.Invoke("pyttsx3"));
         _menu.Items.Add(engineMenu);
 
         // --- Voice ---
         var voiceMenu = new ToolStripMenuItem("Voice");
-        var voices = settings.Engine == "edge" ? EdgeVoices : OfflineVoices;
+        var voices = settings.Engine switch
+        {
+            "kokoro" => KokoroVoices,
+            "edge" => EdgeVoices,
+            _ => SapiVoices,
+        };
         foreach (var (id, label) in voices)
         {
             var voiceId = id;

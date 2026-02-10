@@ -1,0 +1,23 @@
+{
+  "engine": "kokoro",
+  "voice": "bella",
+  "rate": 800,
+  "hotkey_speak": "ctrl\u002Bshift\u002Bs",
+  "hotkey_pause": "ctrl\u002Bshift\u002Bp",
+  "hotkey_stop": "escape",
+  "hotkey_speed_up": "ctrl\u002Bshift\u002B]",
+  "hotkey_speed_down": "ctrl\u002Bshift\u002B[",
+  "hotkey_next": "ctrl\u002Bshift\u002Bn",
+  "hotkey_prev": "ctrl\u002Bshift\u002Bb",
+  "hotkey_ocr": "ctrl\u002Bshift\u002Bo",
+  "hotkey_monitor": "ctrl\u002Bshift\u002Bm",
+  "hotkey_quit": "ctrl\u002Bshift\u002Bq",
+  "line_delay": 0,
+  "read_mode": "lines",
+  "log_preview": true,
+  "auto_copy": true,
+  "ocr_to_clipboard": true,
+  "auto_read": false,
+  "filter_code": true,
+  "normalize_text": true
+}

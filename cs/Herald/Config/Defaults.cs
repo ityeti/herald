@@ -6,9 +6,9 @@ namespace Herald.Config;
 public static class Defaults
 {
     // TTS
-    public const string Engine = "edge";
-    public const string Voice = "aria";
-    public const int Rate = 900;
+    public const string Engine = "kokoro";
+    public const string Voice = "heart";
+    public const int Rate = 200;
     public const int MinRate = 150;
     public const int MaxRate = 1500;
     public const int RateStep = 25;

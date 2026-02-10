@@ -9,9 +9,9 @@ public class SettingsTests
     public void DefaultSettings_HaveExpectedValues()
     {
         var settings = new Settings();
-        Assert.Equal("edge", settings.Engine);
-        Assert.Equal("aria", settings.Voice);
-        Assert.Equal(900, settings.Rate);
+        Assert.Equal("kokoro", settings.Engine);
+        Assert.Equal("heart", settings.Voice);
+        Assert.Equal(200, settings.Rate);
         Assert.Equal("ctrl+shift+s", settings.HotkeySpeak);
         Assert.True(settings.AutoCopy);
         Assert.True(settings.FilterCode);

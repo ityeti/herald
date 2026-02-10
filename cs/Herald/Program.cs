@@ -52,18 +52,21 @@ internal static class Program
     // Main loop timer
     private static System.Windows.Forms.Timer? _mainLoopTimer;
 
-    // Edge voice map (for engine switching logic)
-    private static readonly Dictionary<string, string> EdgeVoiceMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["aria"] = "en-US-AriaNeural",
-        ["guy"] = "en-US-GuyNeural",
-        ["jenny"] = "en-US-JennyNeural",
-        ["christopher"] = "en-US-ChristopherNeural",
-    };
+    // Voice maps for engine switching validation
+    private static readonly HashSet<string> EdgeVoices = new(StringComparer.OrdinalIgnoreCase)
+        { "aria", "guy", "jenny", "christopher" };
+    private static readonly HashSet<string> SapiVoices = new(StringComparer.OrdinalIgnoreCase)
+        { "zira", "david" };
 
     [STAThread]
-    static void Main()
+    static int Main(string[] args)
     {
+        // Headless smoke test mode
+        if (args.Length > 0 && args[0] == "--test-audio")
+        {
+            return RunAudioSmokeTest();
+        }
+
         // DPI awareness (must be before any GUI)
         try { SetProcessDpiAwareness(2); } catch { }
 
@@ -75,7 +78,7 @@ internal static class Program
         if (!_singleInstance.TryAcquire())
         {
             MessageBox.Show("Herald is already running.", "Herald", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
+            return 1;
         }
 
         // Initialize logging
@@ -128,6 +131,82 @@ internal static class Program
         {
             Shutdown();
         }
+
+        return 0;
+    }
+
+    // --- Smoke Test (headless, no speaker output) ---
+
+    private static int RunAudioSmokeTest()
+    {
+        var logPath = Path.Combine(AppContext.BaseDirectory, "herald_smoketest.log");
+        var results = new List<string>();
+        int failures = 0;
+
+        void LogResult(string test, bool pass, string detail = "")
+        {
+            var status = pass ? "PASS" : "FAIL";
+            var line = $"[{status}] {test}" + (detail.Length > 0 ? $" — {detail}" : "");
+            results.Add(line);
+            Console.WriteLine(line);
+            if (!pass) failures++;
+        }
+
+        Console.WriteLine("=== Herald Audio Smoke Test ===");
+        results.Add($"Timestamp: {DateTime.UtcNow:u}");
+        results.Add($"BaseDir: {AppContext.BaseDirectory}");
+        results.Add("");
+
+        // Test 1: SAPI synthesis to WAV file
+        try
+        {
+            var wavPath = Path.Combine(Path.GetTempPath(), $"herald_smoke_sapi_{Guid.NewGuid():N}.wav");
+            using var synth = new System.Speech.Synthesis.SpeechSynthesizer();
+            synth.SetOutputToWaveFile(wavPath);
+            synth.Speak("Herald smoke test SAPI synthesis.");
+            synth.SetOutputToNull();
+
+            var size = new FileInfo(wavPath).Length;
+            LogResult("SAPI synthesis to WAV", size > 44, $"{size} bytes");
+            try { File.Delete(wavPath); } catch { }
+        }
+        catch (Exception ex)
+        {
+            LogResult("SAPI synthesis to WAV", false, ex.Message);
+        }
+
+        // Test 2: EdgeTTS synthesis to MP3 file
+        try
+        {
+            using var engine = new Tts.EdgeTtsEngine("aria", 300);
+            var task = engine.SynthesizeToFileAsync("Herald smoke test Edge TTS synthesis.");
+            task.Wait(TimeSpan.FromSeconds(30));
+            var mp3Path = task.Result;
+
+            if (mp3Path != null && File.Exists(mp3Path))
+            {
+                var size = new FileInfo(mp3Path).Length;
+                LogResult("EdgeTTS synthesis to MP3", size > 100, $"{size} bytes");
+                try { File.Delete(mp3Path); } catch { }
+            }
+            else
+            {
+                LogResult("EdgeTTS synthesis to MP3", false, "No file produced");
+            }
+        }
+        catch (Exception ex)
+        {
+            LogResult("EdgeTTS synthesis to MP3", false, ex.Message);
+        }
+
+        // Write log file
+        results.Add("");
+        results.Add($"Result: {(failures == 0 ? "ALL PASS" : $"{failures} FAILURE(S)")}");
+        File.WriteAllLines(logPath, results);
+        Console.WriteLine($"\nLog written to: {logPath}");
+        Console.WriteLine(failures == 0 ? "ALL PASS" : $"{failures} FAILURE(S)");
+
+        return failures == 0 ? 0 : 1;
     }
 
     // --- Main Loop (runs every 50ms) ---
@@ -461,10 +540,12 @@ internal static class Program
 
     private static ITtsEngine CreateEngine(Settings settings)
     {
-        if (string.Equals(settings.Engine, "edge", StringComparison.OrdinalIgnoreCase))
-            return new EdgeTtsEngine(settings.Voice, settings.Rate);
-        else
-            return new SapiEngine(settings.Voice, settings.Rate);
+        return settings.Engine.ToLowerInvariant() switch
+        {
+            "kokoro" => new KokoroEngine(settings.Voice, settings.Rate),
+            "edge" => new EdgeTtsEngine(settings.Voice, settings.Rate),
+            _ => new SapiEngine(settings.Voice, settings.Rate),
+        };
     }
 
     private static void SwitchEngine(string engineName)
@@ -474,10 +555,19 @@ internal static class Program
 
         _settings.Engine = engineName;
 
-        if (engineName == "edge" && !EdgeVoiceMap.ContainsKey(_settings.Voice))
-            _settings.Voice = "aria";
-        else if (engineName != "edge" && _settings.Voice != "zira" && _settings.Voice != "david")
-            _settings.Voice = "zira";
+        // Reset voice to engine default if current voice isn't compatible
+        switch (engineName)
+        {
+            case "kokoro" when !KokoroEngine.VoiceMap.ContainsKey(_settings.Voice):
+                _settings.Voice = "heart";
+                break;
+            case "edge" when !EdgeVoices.Contains(_settings.Voice):
+                _settings.Voice = "aria";
+                break;
+            case "pyttsx3" when !SapiVoices.Contains(_settings.Voice):
+                _settings.Voice = "zira";
+                break;
+        }
 
         _engine = CreateEngine(_settings);
         _settings.Save();

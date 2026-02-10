@@ -19,13 +19,20 @@
     <Description>Text-to-speech utility for Windows</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Herald.Tests" />
+  </ItemGroup>
+
   <!-- NuGet packages -->
   <ItemGroup>
-    <PackageReference Include="System.Speech" Version="8.0.*" />
-    <PackageReference Include="NAudio" Version="2.2.*" />
     <PackageReference Include="Serilog" Version="4.2.*" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.*" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.*" />
+  </ItemGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="..\Herald.Tts\Herald.Tts.csproj" />
   </ItemGroup>
 
 </Project>

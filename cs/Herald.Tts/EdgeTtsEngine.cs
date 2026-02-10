@@ -1,10 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
-using System.Security.Cryptography;
 using System.Text;
 using NAudio.Wave;
 using Serilog;
-using Herald.Config;
 
 namespace Herald.Tts;
 
@@ -14,18 +12,13 @@ namespace Herald.Tts;
 /// </summary>
 public sealed class EdgeTtsEngine : ITtsEngine
 {
-    // Edge TTS voice mapping (short name → full voice ID)
-    private static readonly Dictionary<string, string> VoiceMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["aria"] = "en-US-AriaNeural",
-        ["guy"] = "en-US-GuyNeural",
-        ["jenny"] = "en-US-JennyNeural",
-        ["christopher"] = "en-US-ChristopherNeural",
-    };
-
     private const string WssUrl = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1";
-    private const string TrustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";  // pragma: allowlist secret
     private const string Origin = "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold";
+    private const string UserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0";
+
+    private const int PlaybackTimeoutSec = 30;
+    private const int PrefetchCacheMax = 10;
 
     private volatile bool _speaking;
     private volatile bool _paused;
@@ -35,10 +28,10 @@ public sealed class EdgeTtsEngine : ITtsEngine
     private string _voiceName;
     private readonly object _lock = new();
 
-    // Prefetch cache: text hash → temp audio file path
+    // Prefetch cache: text hash -> temp audio file path
     private readonly ConcurrentDictionary<string, string> _prefetchCache = new();
     private readonly ConcurrentQueue<string> _prefetchOrder = new();
-    private int _fileCounter;
+    private static int _fileCounter;
 
     // NAudio playback
     private WaveOutEvent? _waveOut;
@@ -72,7 +65,7 @@ public sealed class EdgeTtsEngine : ITtsEngine
         _stopRequested = false;
 
         // Check prefetch cache first
-        var hash = TextHash(text);
+        var hash = EdgeTtsProtocol.TextHash(text);
         if (_prefetchCache.TryRemove(hash, out var cachedFile) && File.Exists(cachedFile))
         {
             Log.Debug("Prefetch cache hit for text hash {Hash}", hash);
@@ -151,11 +144,11 @@ public sealed class EdgeTtsEngine : ITtsEngine
         }
     }
 
-    public IReadOnlyList<string> GetAvailableVoices() => VoiceMap.Keys.ToList();
+    public IReadOnlyList<string> GetAvailableVoices() => EdgeTtsProtocol.VoiceMap.Keys.ToList();
 
     public void Prefetch(string text)
     {
-        var hash = TextHash(text);
+        var hash = EdgeTtsProtocol.TextHash(text);
         if (_prefetchCache.ContainsKey(hash)) return;
 
         Task.Run(async () =>
@@ -206,23 +199,29 @@ public sealed class EdgeTtsEngine : ITtsEngine
         _prefetchCache.Clear();
     }
 
-    // --- Private: WebSocket Protocol ---
+    // --- Internal: WebSocket Protocol ---
 
-    private async Task<string?> SynthesizeToFileAsync(string text)
+    internal async Task<string?> SynthesizeToFileAsync(string text)
     {
-        var voiceId = VoiceMap.GetValueOrDefault(_voiceName, "en-US-AriaNeural");
-        var ratePercent = WpmToEdgeRate(_rate);
+        var voiceId = EdgeTtsProtocol.ResolveVoice(_voiceName);
+        var ratePercent = EdgeTtsProtocol.WpmToEdgeRate(_rate);
         var requestId = Guid.NewGuid().ToString("N");
 
         var audioData = new MemoryStream();
 
         using var ws = new ClientWebSocket();
         ws.Options.SetRequestHeader("Origin", Origin);
-        ws.Options.SetRequestHeader("User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0");
+        ws.Options.SetRequestHeader("User-Agent", UserAgent);
+        ws.Options.SetRequestHeader("Pragma", "no-cache");
+        ws.Options.SetRequestHeader("Cache-Control", "no-cache");
+        ws.Options.SetRequestHeader("Accept-Encoding", "gzip, deflate, br, zstd");
+        ws.Options.SetRequestHeader("Accept-Language", "en-US,en;q=0.9");
+        ws.Options.SetRequestHeader("Cookie", $"muid={EdgeTtsProtocol.GenerateMuid()};");
 
-        var url = $"{WssUrl}?TrustedClientToken={TrustedClientToken}&ConnectionId={requestId}";
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(Defaults.PlaybackTimeoutSec));
+        var secMsGec = EdgeTtsProtocol.GenerateSecMsGec();
+        var url = $"{WssUrl}?TrustedClientToken={EdgeTtsProtocol.TrustedClientToken}&ConnectionId={requestId}" +
+                  $"&Sec-MS-GEC={secMsGec}&Sec-MS-GEC-Version={EdgeTtsProtocol.SecMsGecVersion}";
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(PlaybackTimeoutSec));
 
         try
         {
@@ -232,20 +231,22 @@ public sealed class EdgeTtsEngine : ITtsEngine
 
             // Send config message
             var configMsg =
+                $"X-Timestamp:{DateToString()}\r\n" +
                 "Content-Type:application/json; charset=utf-8\r\n" +
                 "Path:speech.config\r\n\r\n" +
                 "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"}," +
-                "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}";
+                "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n";
 
             await ws.SendAsync(
                 Encoding.UTF8.GetBytes(configMsg),
                 WebSocketMessageType.Text, true, cts.Token);
 
             // Send SSML message
-            var ssml = BuildSsml(text, voiceId, ratePercent);
+            var ssml = EdgeTtsProtocol.BuildSsml(text, voiceId, ratePercent);
             var ssmlMsg =
                 $"X-RequestId:{requestId}\r\n" +
                 "Content-Type:application/ssml+xml\r\n" +
+                $"X-Timestamp:{DateToString()}Z\r\n" +
                 "Path:ssml\r\n\r\n" +
                 ssml;
 
@@ -334,23 +335,6 @@ public sealed class EdgeTtsEngine : ITtsEngine
         return tempFile;
     }
 
-    private static string BuildSsml(string text, string voiceId, string ratePercent)
-    {
-        // Escape XML special characters
-        var escaped = text
-            .Replace("&", "&amp;")
-            .Replace("<", "&lt;")
-            .Replace(">", "&gt;")
-            .Replace("\"", "&quot;")
-            .Replace("'", "&apos;");
-
-        return $"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
-               $"<voice name='{voiceId}'>" +
-               $"<prosody rate='{ratePercent}'>" +
-               escaped +
-               $"</prosody></voice></speak>";
-    }
-
     private void PlayAudioFile(string filePath)
     {
         try
@@ -399,7 +383,7 @@ public sealed class EdgeTtsEngine : ITtsEngine
 
     private void EvictCache()
     {
-        while (_prefetchCache.Count > Defaults.PrefetchCacheMax && _prefetchOrder.TryDequeue(out var oldHash))
+        while (_prefetchCache.Count > PrefetchCacheMax && _prefetchOrder.TryDequeue(out var oldHash))
         {
             if (_prefetchCache.TryRemove(oldHash, out var oldFile))
             {
@@ -408,20 +392,14 @@ public sealed class EdgeTtsEngine : ITtsEngine
         }
     }
 
-    private static string TextHash(string text)
-    {
-        var bytes = MD5.HashData(Encoding.UTF8.GetBytes(text));
-        return Convert.ToHexString(bytes)[..12].ToLower();
-    }
-
     /// <summary>
-    /// Convert WPM to edge-tts rate percentage string.
-    /// 300 wpm = baseline (0%). Each 300 wpm = 100% change. Clamped -50% to +200%.
+    /// JavaScript-style date string for X-Timestamp header.
     /// </summary>
-    private static string WpmToEdgeRate(int wpm)
+    private static string DateToString()
     {
-        int percent = (wpm - 300) / 3;
-        percent = Math.Clamp(percent, -50, 200);
-        return percent >= 0 ? $"+{percent}%" : $"{percent}%";
+        var utc = DateTime.UtcNow;
+        return utc.ToString("ddd MMM dd yyyy HH:mm:ss",
+            System.Globalization.CultureInfo.InvariantCulture) +
+            " GMT+0000 (Coordinated Universal Time)";
     }
 }

@@ -6,15 +6,20 @@ namespace Herald.Tts;
 /// <summary>
 /// Offline TTS using Windows SAPI5 via System.Speech.Synthesis.
 /// Equivalent to the Python pyttsx3 engine.
+///
+/// Uses synchronous Speak() on a dedicated STA thread to ensure
+/// audio output works reliably from any calling context.
 /// </summary>
 public sealed class SapiEngine : ITtsEngine
 {
     private SpeechSynthesizer _synth;
     private volatile bool _speaking;
     private volatile bool _paused;
+    private volatile bool _stopRequested;
     private string _voiceName;
     private int _rate;
     private readonly object _lock = new();
+    private Thread? _speakThread;
 
     // Maps short names to SAPI voice name fragments
     private static readonly Dictionary<string, string> VoiceMap = new(StringComparer.OrdinalIgnoreCase)
@@ -63,17 +68,45 @@ public sealed class SapiEngine : ITtsEngine
     public void Speak(string text)
     {
         Stop();
+        _stopRequested = false;
         _speaking = true;
         _paused = false;
 
-        lock (_lock)
+        // Run synchronous Speak() on a dedicated STA thread for reliable audio output.
+        // SpeakAsync can silently fail when called from non-STA threads in WinForms apps.
+        _speakThread = new Thread(() =>
         {
-            _synth.SpeakAsync(text);
-        }
+            try
+            {
+                Log.Debug("SAPI speaking on thread {ThreadId}, voice={Voice}, rate={Rate}",
+                    Environment.CurrentManagedThreadId, _voiceName, WpmToSapiRate(_rate));
+                lock (_lock)
+                {
+                    _synth.Speak(text);
+                }
+            }
+            catch (Exception ex) when (!_stopRequested)
+            {
+                Log.Warning(ex, "SAPI speak error");
+            }
+            finally
+            {
+                if (!_stopRequested)
+                {
+                    _speaking = false;
+                    _paused = false;
+                }
+            }
+        });
+        _speakThread.SetApartmentState(ApartmentState.STA);
+        _speakThread.IsBackground = true;
+        _speakThread.Name = "SAPI-Speak";
+        _speakThread.Start();
     }
 
     public void Stop()
     {
+        _stopRequested = true;
         lock (_lock)
         {
             if (_speaking || _paused)
@@ -83,6 +116,12 @@ public sealed class SapiEngine : ITtsEngine
                 _paused = false;
             }
         }
+        // Wait briefly for the speak thread to finish
+        if (_speakThread is { IsAlive: true })
+        {
+            _speakThread.Join(500);
+        }
+        _speakThread = null;
     }
 
     public void Pause()
@@ -143,6 +182,7 @@ public sealed class SapiEngine : ITtsEngine
 
     public void Dispose()
     {
+        Stop();
         lock (_lock)
         {
             _synth.Dispose();
@@ -155,17 +195,14 @@ public sealed class SapiEngine : ITtsEngine
         synth.SetOutputToDefaultAudioDevice();
         synth.Rate = WpmToSapiRate(_rate);
         ApplyVoice(synth, _voiceName);
-        synth.SpeakCompleted += (_, e) =>
+
+        // Log available voices on creation for diagnostics
+        foreach (var v in synth.GetInstalledVoices())
         {
-            _speaking = false;
-            _paused = false;
-            if (e.Error != null)
-                Log.Warning(e.Error, "SAPI speak error");
-        };
-        synth.SpeakStarted += (_, _) =>
-        {
-            Log.Debug("SAPI speak started");
-        };
+            if (v.Enabled)
+                Log.Debug("SAPI available voice: {Voice}", v.VoiceInfo.Name);
+        }
+
         return synth;
     }
 
@@ -184,6 +221,7 @@ public sealed class SapiEngine : ITtsEngine
                         return;
                     }
                 }
+                Log.Warning("SAPI voice '{Voice}' not found in installed voices", shortName);
             }
             catch (Exception ex)
             {
@@ -194,9 +232,9 @@ public sealed class SapiEngine : ITtsEngine
 
     /// <summary>
     /// Convert WPM to SAPI rate (-10 to 10 scale).
-    /// SAPI default is 200 WPM at rate 0. Roughly: rate ≈ (wpm - 200) / 30, clamped.
+    /// SAPI default is 200 WPM at rate 0. Roughly: rate = (wpm - 200) / 30, clamped.
     /// </summary>
-    private static int WpmToSapiRate(int wpm)
+    internal static int WpmToSapiRate(int wpm)
     {
         int rate = (wpm - 200) / 30;
         return Math.Clamp(rate, -10, 10);
