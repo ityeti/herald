@@ -97,4 +97,23 @@ public class KokoroEngineTests
         engine.Rate = 400;
         Assert.Equal(400, engine.Rate);
     }
+
+    [Fact]
+    public void PcmConstants_MatchKokoroSharpOutputFormat()
+    {
+        // KokoroSharp produces raw PCM: 16-bit signed, 24kHz, mono
+        Assert.Equal(24000, KokoroEngine.PcmSampleRate);
+        Assert.Equal(16, KokoroEngine.PcmBitsPerSample);
+        Assert.Equal(1, KokoroEngine.PcmChannels);
+    }
+
+    [Theory]
+    [InlineData(600)]
+    [InlineData(900)]
+    [InlineData(1500)]
+    public void WpmToKokoroSpeed_HighWpmAllClampToSameSpeed(int wpm)
+    {
+        // All WPM values >= 600 produce 3.0x (the Kokoro max), documenting the plateau
+        Assert.Equal(3.0f, KokoroEngine.WpmToKokoroSpeed(wpm));
+    }
 }

@@ -251,7 +251,8 @@ public sealed class TrayIcon : IDisposable
         foreach (var (wpm, label) in SpeedPresets)
         {
             var speed = wpm;
-            AddRadioItem(speedMenu, label, settings.Rate == wpm,
+            var displayLabel = GetSpeedLabel(wpm, settings.Engine);
+            AddRadioItem(speedMenu, displayLabel, settings.Rate == wpm,
                 () => OnSpeedChange?.Invoke(speed));
         }
         _menu.Items.Add(speedMenu);
@@ -396,6 +397,30 @@ public sealed class TrayIcon : IDisposable
         };
         item.Click += (_, _) => onClick();
         parent.DropDownItems.Add(item);
+    }
+
+    /// <summary>
+    /// Get engine-aware label for a speed preset.
+    /// Kokoro labels show the actual multiplier and clamping warnings.
+    /// </summary>
+    internal static string GetSpeedLabel(int wpm, string engine)
+    {
+        var baseLabel = SpeedPresets.FirstOrDefault(p => p.wpm == wpm).label
+            ?? $"{wpm} wpm";
+
+        if (!string.Equals(engine, "kokoro", StringComparison.OrdinalIgnoreCase))
+            return baseLabel;
+
+        float speed = wpm / 200f;
+
+        if (wpm >= 700)
+            return $"{baseLabel} — Kokoro capped 3.0x";
+        if (wpm >= 400)
+            return $"{baseLabel} — Kokoro {speed:F1}x";
+        if (wpm >= 300)
+            return $"{baseLabel} — Kokoro max quality";
+
+        return baseLabel;
     }
 
     /// <summary>

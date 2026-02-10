@@ -19,6 +19,11 @@ public sealed class KokoroEngine : ITtsEngine
 {
     private const int PrefetchCacheMax = 10;
 
+    // KokoroSharp output format: raw PCM, 16-bit signed, 24kHz, mono (no RIFF header)
+    internal const int PcmSampleRate = 24000;
+    internal const int PcmBitsPerSample = 16;
+    internal const int PcmChannels = 1;
+
     private KokoroWavSynthesizer? _synth;
     private KokoroVoice? _voice;
 
@@ -295,9 +300,16 @@ public sealed class KokoroEngine : ITtsEngine
     {
         if (_synth == null || _voice == null) return null;
 
+        var speed = WpmToKokoroSpeed(_rate);
+
+        if (_rate > 600)
+            Log.Warning("Kokoro speed capped at 3.0x ({Wpm} WPM requested, all values above 600 WPM produce identical output)", _rate);
+        else if (_rate > 260)
+            Log.Debug("Kokoro speed {Speed:F2}x ({Wpm} WPM) — above recommended 1.3x quality range", speed, _rate);
+
         var config = new KokoroTTSPipelineConfig
         {
-            Speed = WpmToKokoroSpeed(_rate),
+            Speed = speed,
         };
 
         return _synth.Synthesize(text, _voice, config);
@@ -311,8 +323,7 @@ public sealed class KokoroEngine : ITtsEngine
             {
                 StopPlayback();
 
-                // KokoroSharp returns raw PCM: 16-bit signed, 24kHz, mono (no RIFF header)
-                var pcmFormat = new WaveFormat(24000, 16, 1);
+                var pcmFormat = new WaveFormat(PcmSampleRate, PcmBitsPerSample, PcmChannels);
                 _waveStream = new MemoryStream(wavBytes);
                 _rawStream = new RawSourceWaveStream(_waveStream, pcmFormat);
 
