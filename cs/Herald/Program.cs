@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using Herald.Config;
 using Herald.Hotkeys;
+using Herald.Ocr;
 using Herald.Text;
 using Herald.Tray;
 using Herald.Tts;
@@ -15,6 +17,7 @@ namespace Herald;
 /// - Action queue pattern (hotkeys enqueue, main loop processes)
 /// - Line queue with navigation (next/prev/pause/stop)
 /// - Prefetch cache for EdgeTTS
+/// - OCR with region capture and persistent monitoring
 /// - Heartbeat monitoring (60s health checks)
 /// </summary>
 internal static class Program
@@ -30,9 +33,13 @@ internal static class Program
     private static GlobalHotkeyManager _hotkeys = null!;
     private static SessionMonitor _sessionMonitor = null!;
     private static SingleInstance _singleInstance = null!;
+    private static PersistentRegion? _persistentRegion;
 
     // Action queue: hotkey callbacks enqueue strings, main loop processes them
     private static readonly ConcurrentQueue<string> ActionQueue = new();
+
+    // Auto-read queue: OCR text from persistent region arrives here
+    private static readonly ConcurrentQueue<string> AutoReadQueue = new();
 
     // Line queue
     private static readonly List<string> LineQueue = new();
@@ -103,6 +110,9 @@ internal static class Program
             _mainLoopTimer.Tick += (_, _) => MainLoopTick();
             _mainLoopTimer.Start();
 
+            // Check for updates in background
+            _ = CheckForUpdatesAsync();
+
             Log.Information("Herald ready. Press {Hotkey} to speak selected text.", _settings.HotkeySpeak);
             _tray.ShowBalloon("Herald", "Ready. Press Ctrl+Shift+S to speak selected text.");
 
@@ -125,6 +135,7 @@ internal static class Program
     private static void MainLoopTick()
     {
         ProcessActionQueue();
+        ProcessAutoReadQueue();
         UpdateTrayState();
         MaybeHeartbeat();
     }
@@ -141,6 +152,16 @@ internal static class Program
             {
                 Log.Error(ex, "Error handling action: {Action}", action);
             }
+        }
+    }
+
+    private static void ProcessAutoReadQueue()
+    {
+        if (!_settings.AutoRead) return;
+
+        while (AutoReadQueue.TryDequeue(out var text))
+        {
+            SpeakText(text);
         }
     }
 
@@ -169,15 +190,28 @@ internal static class Program
             case "speed_down":
                 OnSpeedChange(-Defaults.RateStep);
                 break;
+            case "ocr":
+                OnOcrRegion();
+                break;
+            case "monitor":
+                OnToggleMonitor();
+                break;
             case "quit":
                 OnQuit();
+                break;
+            case "_advance":
+                // Delayed line advance (from line delay timer)
+                if (_currentLineIndex < LineQueue.Count - 1)
+                {
+                    _currentLineIndex++;
+                    SpeakCurrentLine();
+                }
                 break;
         }
     }
 
     private static void UpdateTrayState()
     {
-        // Update tray icon to match engine state
         if (_engine.IsGenerating)
             _tray.SetState(TrayState.Generating);
         else if (_engine.IsPaused)
@@ -193,8 +227,20 @@ internal static class Program
             _wasSpeaking = false;
             if (_currentLineIndex < LineQueue.Count - 1)
             {
-                _currentLineIndex++;
-                SpeakCurrentLine();
+                // Apply line delay if configured
+                if (_settings.LineDelay > 0)
+                {
+                    Task.Run(async () =>
+                    {
+                        await Task.Delay(_settings.LineDelay);
+                        ActionQueue.Enqueue("_advance");
+                    });
+                }
+                else
+                {
+                    _currentLineIndex++;
+                    SpeakCurrentLine();
+                }
             }
         }
 
@@ -221,6 +267,15 @@ internal static class Program
 
     private static void OnSpeak()
     {
+        // Check for clipboard image first (before auto-copy overwrites it)
+        using var clipboardImage = WinOcr.GetClipboardImage();
+        if (clipboardImage != null)
+        {
+            Log.Debug("Clipboard contains image, running OCR");
+            _ = OcrAndSpeakAsync(clipboardImage);
+            return;
+        }
+
         // Auto-copy selection if enabled
         if (_settings.AutoCopy)
             ClipboardHelper.SimulateCopy();
@@ -232,8 +287,15 @@ internal static class Program
             return;
         }
 
-        // Filter and split into lines
-        var lines = TextFilter.FilterAndSplit(text, _settings.FilterCode, _settings.NormalizeText);
+        SpeakText(text);
+    }
+
+    private static void SpeakText(string text)
+    {
+        var lines = _settings.ReadMode == "continuous"
+            ? [TextFilter.NormalizeForSpeech(text)]
+            : TextFilter.FilterAndSplit(text, _settings.FilterCode, _settings.NormalizeText);
+
         if (lines.Count == 0)
         {
             Log.Debug("All lines filtered out");
@@ -246,7 +308,6 @@ internal static class Program
             Log.Information("Speaking {Count} line(s): {Preview}", lines.Count, preview);
         }
 
-        // Stop current speech and load new lines
         _engine.Stop();
         LineQueue.Clear();
         LineQueue.AddRange(lines);
@@ -254,6 +315,82 @@ internal static class Program
         _wasSpeaking = false;
 
         SpeakCurrentLine();
+    }
+
+    private static async Task OcrAndSpeakAsync(Bitmap image)
+    {
+        var text = await WinOcr.RecognizeAsync(image);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            Log.Debug("OCR returned no text");
+            return;
+        }
+
+        if (_settings.OcrToClipboard)
+        {
+            try { Clipboard.SetText(text); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to copy OCR text to clipboard"); }
+        }
+
+        // Enqueue for main thread processing
+        AutoReadQueue.Enqueue(text);
+    }
+
+    private static void OnOcrRegion()
+    {
+        Log.Debug("OCR region capture requested");
+        Task.Run(async () =>
+        {
+            var region = RegionSelector.SelectRegion();
+            if (region == null)
+            {
+                Log.Debug("Region selection cancelled");
+                return;
+            }
+
+            using var bmp = WinOcr.CaptureRegion(region.Value);
+            if (bmp == null) return;
+
+            var text = await WinOcr.RecognizeAsync(bmp);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                Log.Debug("OCR returned no text from region");
+                return;
+            }
+
+            if (_settings.OcrToClipboard)
+            {
+                // Must set clipboard from STA thread
+                ActionQueue.Enqueue("_noop"); // Wake main thread
+                try { Clipboard.SetText(text); }
+                catch { }
+            }
+
+            AutoReadQueue.Enqueue(text);
+        });
+    }
+
+    private static void OnToggleMonitor()
+    {
+        _persistentRegion ??= new PersistentRegion();
+
+        if (_persistentRegion.IsActive)
+        {
+            _persistentRegion.Stop();
+            Log.Information("Persistent region monitoring stopped");
+        }
+        else
+        {
+            Task.Run(() =>
+            {
+                var region = RegionSelector.SelectRegion();
+                if (region == null) return;
+
+                _persistentRegion.TextChanged += text => AutoReadQueue.Enqueue(text);
+                _persistentRegion.Start(region.Value);
+                Log.Information("Persistent region monitoring started");
+            });
+        }
     }
 
     private static void OnPauseResume()
@@ -337,7 +474,6 @@ internal static class Program
 
         _settings.Engine = engineName;
 
-        // Pick appropriate default voice for the engine
         if (engineName == "edge" && !EdgeVoiceMap.ContainsKey(_settings.Voice))
             _settings.Voice = "aria";
         else if (engineName != "edge" && _settings.Voice != "zira" && _settings.Voice != "david")
@@ -356,6 +492,7 @@ internal static class Program
         _tray.OnQuit = OnQuit;
         _tray.OnPauseToggle = () => ActionQueue.Enqueue("pause");
         _tray.OnEngineChange = engine => SwitchEngine(engine);
+
         _tray.OnVoiceChange = voice =>
         {
             _settings.Voice = voice;
@@ -364,6 +501,7 @@ internal static class Program
             _tray.RebuildMenu(_settings);
             Log.Information("Voice changed to {Voice}", voice);
         };
+
         _tray.OnSpeedChange = speed =>
         {
             _settings.Rate = speed;
@@ -371,6 +509,60 @@ internal static class Program
             _settings.Save();
             _tray.RebuildMenu(_settings);
             Log.Information("Speed changed to {Speed} wpm", speed);
+        };
+
+        _tray.OnLineDelayChange = delay =>
+        {
+            _settings.LineDelay = delay;
+            _settings.Save();
+            _tray.RebuildMenu(_settings);
+            Log.Information("Line delay changed to {Delay}ms", delay);
+        };
+
+        _tray.OnReadModeChange = mode =>
+        {
+            _settings.ReadMode = mode;
+            _settings.Save();
+            _tray.RebuildMenu(_settings);
+            Log.Information("Read mode changed to {Mode}", mode);
+        };
+
+        _tray.OnLogPreviewChange = v => { _settings.LogPreview = v; _settings.Save(); };
+        _tray.OnAutoCopyChange = v => { _settings.AutoCopy = v; _settings.Save(); };
+        _tray.OnOcrToClipboardChange = v => { _settings.OcrToClipboard = v; _settings.Save(); };
+        _tray.OnFilterCodeChange = v => { _settings.FilterCode = v; _settings.Save(); };
+        _tray.OnNormalizeTextChange = v => { _settings.NormalizeText = v; _settings.Save(); };
+
+        _tray.OnAutoReadChange = v =>
+        {
+            _settings.AutoRead = v;
+            _settings.Save();
+            Log.Information("Auto-read {State}", v ? "enabled" : "disabled");
+        };
+
+        _tray.OnHotkeyChange = (key, value) =>
+        {
+            _settings.SetHotkey(key, value);
+            _settings.Save();
+            // Re-register all hotkeys
+            _hotkeys.UnregisterAll();
+            RegisterAllHotkeys();
+            _tray.RebuildMenu(_settings);
+            Log.Information("Hotkey {Key} changed to {Value}", key, value);
+        };
+
+        _tray.OnResetHotkeys = () =>
+        {
+            foreach (var key in Defaults.HotkeySettingKeys)
+            {
+                var defaultValue = new Settings().GetHotkey(key);
+                _settings.SetHotkey(key, defaultValue);
+            }
+            _settings.Save();
+            _hotkeys.UnregisterAll();
+            RegisterAllHotkeys();
+            _tray.RebuildMenu(_settings);
+            Log.Information("Hotkeys reset to defaults");
         };
     }
 
@@ -389,6 +581,8 @@ internal static class Program
             [_settings.HotkeySpeedDown] = "speed_down",
             [_settings.HotkeyNext] = "next",
             [_settings.HotkeyPrev] = "prev",
+            [_settings.HotkeyOcr] = "ocr",
+            [_settings.HotkeyMonitor] = "monitor",
             [_settings.HotkeyQuit] = "quit",
         };
 
@@ -398,11 +592,26 @@ internal static class Program
         }
     }
 
+    // --- Update Checker ---
+
+    private static async Task CheckForUpdatesAsync()
+    {
+        // Small delay to avoid slowing startup
+        await Task.Delay(3000);
+
+        var update = await UpdateChecker.CheckForUpdateAsync();
+        if (update.HasValue)
+        {
+            _tray.ShowBalloon("Herald Update Available",
+                $"Version {update.Value.version} is available. Right-click tray icon for details.",
+                ToolTipIcon.Info);
+        }
+    }
+
     // --- Session Change ---
 
     private static void OnSessionChanged()
     {
-        // Delay before reinitializing (audio device needs time to reconnect)
         Task.Run(async () =>
         {
             await Task.Delay(Defaults.RdpReconnectDelayMs);
@@ -423,6 +632,7 @@ internal static class Program
     private static void Shutdown()
     {
         _mainLoopTimer?.Dispose();
+        _persistentRegion?.Dispose();
         _hotkeys?.Dispose();
         _sessionMonitor?.Dispose();
         _engine?.Dispose();

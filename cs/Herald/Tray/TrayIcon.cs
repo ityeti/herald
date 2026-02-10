@@ -6,7 +6,7 @@ namespace Herald.Tray;
 
 /// <summary>
 /// System tray icon and context menu using WinForms NotifyIcon.
-/// Equivalent to Python's pystray-based tray_app.py.
+/// Full menu with engine/voice/speed, toggles, hotkey config, and OCR options.
 /// </summary>
 public sealed class TrayIcon : IDisposable
 {
@@ -20,12 +20,22 @@ public sealed class TrayIcon : IDisposable
     private readonly Icon _iconSpeaking;
     private readonly Icon _iconPaused;
 
-    // Callbacks
+    // --- Callbacks ---
     public Action? OnQuit { get; set; }
     public Action? OnPauseToggle { get; set; }
     public Action<string>? OnVoiceChange { get; set; }
     public Action<int>? OnSpeedChange { get; set; }
     public Action<string>? OnEngineChange { get; set; }
+    public Action<int>? OnLineDelayChange { get; set; }
+    public Action<string>? OnReadModeChange { get; set; }
+    public Action<bool>? OnLogPreviewChange { get; set; }
+    public Action<bool>? OnAutoCopyChange { get; set; }
+    public Action<bool>? OnOcrToClipboardChange { get; set; }
+    public Action<bool>? OnAutoReadChange { get; set; }
+    public Action<bool>? OnFilterCodeChange { get; set; }
+    public Action<bool>? OnNormalizeTextChange { get; set; }
+    public Action<string, string>? OnHotkeyChange { get; set; }
+    public Action? OnResetHotkeys { get; set; }
 
     // Edge voices
     public static readonly (string id, string label)[] EdgeVoices =
@@ -61,6 +71,106 @@ public sealed class TrayIcon : IDisposable
         (1500, "1500 wpm (Max)"),
     ];
 
+    // Line delay presets
+    public static readonly (int ms, string label)[] DelayPresets =
+    [
+        (0, "No delay"),
+        (100, "100ms"),
+        (250, "250ms"),
+        (500, "500ms"),
+        (1000, "1 second"),
+        (2000, "2 seconds"),
+    ];
+
+    // Read modes
+    public static readonly (string id, string label)[] ReadModes =
+    [
+        ("lines", "Line by Line"),
+        ("continuous", "Continuous"),
+    ];
+
+    // Hotkey presets per setting key
+    private static readonly Dictionary<string, (string value, string label)[]> HotkeyPresets = new()
+    {
+        ["hotkey_speak"] =
+        [
+            ("ctrl+shift+s", "Ctrl + Shift + S"),
+            ("ctrl+alt+s", "Ctrl + Alt + S"),
+            ("f9", "F9"),
+        ],
+        ["hotkey_pause"] =
+        [
+            ("ctrl+shift+p", "Ctrl + Shift + P"),
+            ("ctrl+alt+p", "Ctrl + Alt + P"),
+            ("f10", "F10"),
+        ],
+        ["hotkey_stop"] =
+        [
+            ("escape", "Escape"),
+            ("ctrl+shift+x", "Ctrl + Shift + X"),
+            ("f11", "F11"),
+        ],
+        ["hotkey_speed_up"] =
+        [
+            ("ctrl+shift+]", "Ctrl + Shift + ]"),
+            ("ctrl+shift+=", "Ctrl + Shift + ="),
+        ],
+        ["hotkey_speed_down"] =
+        [
+            ("ctrl+shift+[", "Ctrl + Shift + ["),
+            ("ctrl+shift+-", "Ctrl + Shift + -"),
+        ],
+        ["hotkey_next"] =
+        [
+            ("ctrl+shift+n", "Ctrl + Shift + N"),
+            ("ctrl+alt+n", "Ctrl + Alt + N"),
+        ],
+        ["hotkey_prev"] =
+        [
+            ("ctrl+shift+b", "Ctrl + Shift + B"),
+            ("ctrl+alt+b", "Ctrl + Alt + B"),
+        ],
+        ["hotkey_ocr"] =
+        [
+            ("ctrl+shift+o", "Ctrl + Shift + O"),
+            ("ctrl+alt+o", "Ctrl + Alt + O"),
+        ],
+        ["hotkey_monitor"] =
+        [
+            ("ctrl+shift+m", "Ctrl + Shift + M"),
+            ("ctrl+alt+m", "Ctrl + Alt + M"),
+        ],
+        ["hotkey_quit"] =
+        [
+            ("ctrl+shift+q", "Ctrl + Shift + Q"),
+            ("ctrl+alt+q", "Ctrl + Alt + Q"),
+        ],
+    };
+
+    // Hotkey categories for organized display
+    private static readonly (string category, string[] keys)[] HotkeyCategories =
+    [
+        ("Reading", ["hotkey_speak", "hotkey_pause", "hotkey_stop"]),
+        ("Navigation", ["hotkey_next", "hotkey_prev", "hotkey_speed_up", "hotkey_speed_down"]),
+        ("OCR", ["hotkey_ocr", "hotkey_monitor"]),
+        ("App", ["hotkey_quit"]),
+    ];
+
+    // Friendly names for hotkey settings
+    private static readonly Dictionary<string, string> HotkeyNames = new()
+    {
+        ["hotkey_speak"] = "Speak",
+        ["hotkey_pause"] = "Pause/Resume",
+        ["hotkey_stop"] = "Stop",
+        ["hotkey_speed_up"] = "Speed Up",
+        ["hotkey_speed_down"] = "Speed Down",
+        ["hotkey_next"] = "Next Line",
+        ["hotkey_prev"] = "Previous Line",
+        ["hotkey_ocr"] = "OCR Region",
+        ["hotkey_monitor"] = "Toggle Monitor",
+        ["hotkey_quit"] = "Quit",
+    };
+
     public TrayIcon()
     {
         _iconIdle = CreateSpeakerIcon(Color.Gray);
@@ -87,43 +197,115 @@ public sealed class TrayIcon : IDisposable
     {
         _menu.Items.Clear();
 
-        // Status header
+        // --- Header ---
         var header = new ToolStripMenuItem($"Herald v0.3.0 — {StateLabel()}") { Enabled = false };
         _menu.Items.Add(header);
         _menu.Items.Add(new ToolStripSeparator());
 
-        // Engine submenu
+        // --- Engine ---
         var engineMenu = new ToolStripMenuItem("Engine");
-        AddRadioItem(engineMenu, "Edge (Online)", settings.Engine == "edge", () => OnEngineChange?.Invoke("edge"));
-        AddRadioItem(engineMenu, "SAPI (Offline)", settings.Engine == "pyttsx3", () => OnEngineChange?.Invoke("pyttsx3"));
+        AddRadioItem(engineMenu, "Edge (Online)", settings.Engine == "edge",
+            () => OnEngineChange?.Invoke("edge"));
+        AddRadioItem(engineMenu, "SAPI (Offline)", settings.Engine != "edge",
+            () => OnEngineChange?.Invoke("pyttsx3"));
         _menu.Items.Add(engineMenu);
 
-        // Voice submenu
+        // --- Voice ---
         var voiceMenu = new ToolStripMenuItem("Voice");
         var voices = settings.Engine == "edge" ? EdgeVoices : OfflineVoices;
         foreach (var (id, label) in voices)
         {
-            var isSelected = string.Equals(settings.Voice, id, StringComparison.OrdinalIgnoreCase);
             var voiceId = id;
-            AddRadioItem(voiceMenu, label, isSelected, () => OnVoiceChange?.Invoke(voiceId));
+            AddRadioItem(voiceMenu, label,
+                string.Equals(settings.Voice, id, StringComparison.OrdinalIgnoreCase),
+                () => OnVoiceChange?.Invoke(voiceId));
         }
         _menu.Items.Add(voiceMenu);
 
-        // Speed submenu
-        var speedMenu = new ToolStripMenuItem("Speed");
+        // --- Speed ---
+        var speedMenu = new ToolStripMenuItem($"Speed ({settings.Rate} wpm)");
         foreach (var (wpm, label) in SpeedPresets)
         {
-            var isSelected = settings.Rate == wpm;
             var speed = wpm;
-            AddRadioItem(speedMenu, label, isSelected, () => OnSpeedChange?.Invoke(speed));
+            AddRadioItem(speedMenu, label, settings.Rate == wpm,
+                () => OnSpeedChange?.Invoke(speed));
         }
         _menu.Items.Add(speedMenu);
 
+        // --- Line Delay ---
+        var delayMenu = new ToolStripMenuItem("Line Delay");
+        foreach (var (ms, label) in DelayPresets)
+        {
+            var delay = ms;
+            AddRadioItem(delayMenu, label, settings.LineDelay == ms,
+                () => OnLineDelayChange?.Invoke(delay));
+        }
+        _menu.Items.Add(delayMenu);
+
+        // --- Read Mode ---
+        var modeMenu = new ToolStripMenuItem("Read Mode");
+        foreach (var (id, label) in ReadModes)
+        {
+            var mode = id;
+            AddRadioItem(modeMenu, label, settings.ReadMode == id,
+                () => OnReadModeChange?.Invoke(mode));
+        }
+        _menu.Items.Add(modeMenu);
+
         _menu.Items.Add(new ToolStripSeparator());
 
-        // Quit
-        var quitItem = new ToolStripMenuItem("Quit Herald", null, (_, _) => OnQuit?.Invoke());
-        _menu.Items.Add(quitItem);
+        // --- Toggles ---
+        AddToggle("Auto-Copy Selection", settings.AutoCopy,
+            v => OnAutoCopyChange?.Invoke(v));
+        AddToggle("Filter Code/URLs", settings.FilterCode,
+            v => OnFilterCodeChange?.Invoke(v));
+        AddToggle("Normalize Text", settings.NormalizeText,
+            v => OnNormalizeTextChange?.Invoke(v));
+        AddToggle("Log Preview", settings.LogPreview,
+            v => OnLogPreviewChange?.Invoke(v));
+        AddToggle("OCR to Clipboard", settings.OcrToClipboard,
+            v => OnOcrToClipboardChange?.Invoke(v));
+        AddToggle("Auto-Read Region", settings.AutoRead,
+            v => OnAutoReadChange?.Invoke(v));
+
+        _menu.Items.Add(new ToolStripSeparator());
+
+        // --- Hotkeys ---
+        var hotkeyMenu = new ToolStripMenuItem("Hotkeys");
+        foreach (var (category, keys) in HotkeyCategories)
+        {
+            var catMenu = new ToolStripMenuItem(category);
+            foreach (var key in keys)
+            {
+                var name = HotkeyNames.GetValueOrDefault(key, key);
+                var current = settings.GetHotkey(key);
+                var keyMenu = new ToolStripMenuItem($"{name}: {current}");
+
+                if (HotkeyPresets.TryGetValue(key, out var presets))
+                {
+                    foreach (var (value, label) in presets)
+                    {
+                        var hkKey = key;
+                        var hkValue = value;
+                        AddRadioItem(keyMenu, label, current == value,
+                            () => OnHotkeyChange?.Invoke(hkKey, hkValue));
+                    }
+                }
+                catMenu.DropDownItems.Add(keyMenu);
+            }
+            hotkeyMenu.DropDownItems.Add(catMenu);
+        }
+
+        hotkeyMenu.DropDownItems.Add(new ToolStripSeparator());
+        hotkeyMenu.DropDownItems.Add(new ToolStripMenuItem("Reset to Defaults",
+            null, (_, _) => OnResetHotkeys?.Invoke()));
+
+        _menu.Items.Add(hotkeyMenu);
+
+        _menu.Items.Add(new ToolStripSeparator());
+
+        // --- Quit ---
+        _menu.Items.Add(new ToolStripMenuItem("Quit Herald", null, (_, _) => OnQuit?.Invoke()));
     }
 
     public void SetState(TrayState state)
@@ -170,6 +352,17 @@ public sealed class TrayIcon : IDisposable
         _ => "Idle",
     };
 
+    private void AddToggle(string text, bool isChecked, Action<bool> onChange)
+    {
+        var item = new ToolStripMenuItem(text)
+        {
+            Checked = isChecked,
+            CheckOnClick = true,
+        };
+        item.CheckedChanged += (_, _) => onChange(item.Checked);
+        _menu.Items.Add(item);
+    }
+
     private static void AddRadioItem(ToolStripMenuItem parent, string text, bool isChecked, Action onClick)
     {
         var item = new ToolStripMenuItem(text)
@@ -182,7 +375,7 @@ public sealed class TrayIcon : IDisposable
     }
 
     /// <summary>
-    /// Create a simple speaker icon with the given color, matching the Python PIL-generated icons.
+    /// Create a simple speaker icon with the given color.
     /// 16x16 bitmap with a speaker shape.
     /// </summary>
     private static Icon CreateSpeakerIcon(Color color)
@@ -195,14 +388,14 @@ public sealed class TrayIcon : IDisposable
         using var brush = new SolidBrush(color);
         using var pen = new Pen(color, 1.5f);
 
-        // Speaker body (rectangle)
+        // Speaker body
         g.FillRectangle(brush, 2, 5, 4, 6);
 
-        // Speaker cone (triangle)
+        // Speaker cone
         var cone = new Point[] { new(6, 5), new(10, 2), new(10, 13), new(6, 11) };
         g.FillPolygon(brush, cone);
 
-        // Sound waves (arcs)
+        // Sound waves
         g.DrawArc(pen, 10, 4, 4, 8, -45, 90);
 
         return Icon.FromHandle(bmp.GetHicon());
