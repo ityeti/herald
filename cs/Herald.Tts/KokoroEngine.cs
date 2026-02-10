@@ -406,7 +406,7 @@ public sealed class KokoroEngine : ITtsEngine
     /// Search for the Kokoro ONNX model in known locations.
     /// KokoroSharp downloads to the user's home directory as "kokoro.onnx".
     /// </summary>
-    private static string? FindModelPath()
+    internal static string? FindModelPath()
     {
         var modelNames = new[] { "kokoro.onnx", "kokoro-v1.0.onnx" };
         var searchDirs = new[]

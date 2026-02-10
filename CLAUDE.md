@@ -42,14 +42,22 @@ Text-to-speech utility for Windows — the inverse of [whisper-typer](../whisper
 ## Testing
 
 ```batch
-:: Run all tests
-test_runner.bat
-
-:: Run only unit tests (fast)
-test_runner.bat --unit
+test_runner.bat          :: All tests
+test_runner.bat unit     :: Unit tests only (fast)
+test_runner.bat coverage :: Coverage report
+test_runner.bat fast     :: All except slow tests
 ```
 
+**Baseline coverage:** 5% total (93% config, 23% text_filter — most modules need tests)
+
 Cross-project TTS→STT validation tests are in `dev-oversight/tests/`.
+
+When modifying code in this project:
+1. Run existing tests first to confirm baseline passes
+2. For bug fixes: write a failing test that reproduces the bug, then fix
+3. For new features: write tests alongside or immediately after implementation
+4. Run tests after changes to catch regressions
+5. Do not reduce existing test coverage
 
 ## Default Hotkeys
 

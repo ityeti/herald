@@ -1,7 +1,7 @@
 {
   "engine": "kokoro",
-  "voice": "bella",
-  "rate": 800,
+  "voice": "heart",
+  "rate": 300,
   "hotkey_speak": "ctrl\u002Bshift\u002Bs",
   "hotkey_pause": "ctrl\u002Bshift\u002Bp",
   "hotkey_stop": "escape",

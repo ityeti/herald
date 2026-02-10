@@ -1,10 +1,11 @@
 # Herald - Text-to-Speech
 
-![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 
 A text-to-speech utility for Windows that reads clipboard text aloud using high-quality neural voices. The inverse of [Whisper Voice-to-Text](https://github.com/ityeti/whisper-typer).
+
+**v0.3.0+** is a C# (.NET 8) rewrite with local neural TTS via Kokoro. The Python version (v0.2.1) remains available.
 
 ## Why Herald?
 
@@ -20,54 +21,73 @@ A text-to-speech utility for Windows that reads clipboard text aloud using high-
 
 | Feature | Herald | Windows TTS |
 |---------|--------|-------------|
-| Voice Quality | Neural voices (Aria, Jenny, Guy, Christopher) | Basic SAPI voices |
-| Speed Range | 150-1500 wpm | Limited range |
+| Voice Quality | Kokoro neural (local) + Edge neural (online) | Basic SAPI voices |
+| Speed Range | 100-600+ wpm | Limited range |
 | Pause/Resume | ✅ Yes | ❌ No |
 | Hotkey Control | ✅ Global hotkeys | ❌ Manual trigger |
 | System Tray | ✅ Quick access | ❌ No controls |
-| Offline Support | ✅ Fallback voices | N/A |
+| Offline Support | ✅ Kokoro (default) + SAPI fallback | N/A |
 
 ## Features
 
-- **Neural Voices**: Microsoft Edge neural voices (Aria, Jenny, Guy, Christopher) via edge-tts
-- **Offline Fallback**: Windows SAPI voices (Zira, David) when offline
+- **Kokoro Neural TTS** (default): Studio-quality local voices — 27 voices, runs offline, Apache 2.0 licensed
+- **Edge Neural Voices**: Microsoft Edge neural voices (Aria, Jenny, Guy, Christopher) — requires internet
+- **SAPI Fallback**: Windows SAPI voices (Zira, David) — always available offline
 - **OCR Support**: Read text from screenshots and images (Win+Shift+S → Ctrl+Shift+S)
 - **Region Capture**: Draw a box on screen to OCR and read (Ctrl+Shift+O) - great for PDFs
 - **Auto-Copy**: Just select text and press Ctrl+Shift+S - no need to Ctrl+C first
 - **Global Hotkeys**: Works in any application
 - **System Tray**: Unobtrusive tray icon with menu controls
 - **Pause/Resume**: Pause mid-speech and resume later
-- **Adjustable Speed**: 150-900 wpm for online voices, up to 1500 wpm offline
+- **Adjustable Speed**: 100-600+ wpm depending on engine
 - **Settings Persistence**: Remembers your voice and speed preferences
+- **Verbal Error Alerts**: Speaks errors via SAPI fallback so you're never left with silence
 
 ## Requirements
 
 - **OS**: Windows 10/11
-- **Internet**: Required for neural voices (offline voices work without)
+- **Internet**: Not required (Kokoro runs locally). Edge TTS voices need internet.
 
-## Installation Options
+## Installation
 
 ### Option 1: Standalone Executable (Easiest)
 
-Download the pre-built executable - no Python installation required:
+Download the pre-built executable - no Python or .NET installation required:
 
 1. Go to [Releases](https://github.com/ityeti/herald/releases)
 2. Download `Herald.zip` from the latest release
 3. Extract and run `Herald.exe` as Administrator
 
-The executable is portable and includes everything needed.
+The executable is portable and self-contained. On first use, Kokoro will download its ONNX model (~320MB).
 
-### Option 2: Run from Source (Python)
+### Option 2: Build from Source (C# — v0.3.0+)
+
+Requires [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+
+```bash
+# Build
+dotnet build cs/Herald.sln
+
+# Run
+dotnet run --project cs/Herald
+
+# Publish self-contained executable
+dotnet publish cs/Herald -c Release -r win-x64 --self-contained
+```
+
+The published exe is at `cs/Herald/bin/Release/net8.0-windows/win-x64/publish/Herald.exe`.
+
+### Option 3: Run from Source (Python — v0.2.1)
 
 Requires Python 3.10, 3.11, or 3.12.
 
-### 1. Install Python
+#### 1. Install Python
 
 Download and install Python from [python.org](https://www.python.org/downloads/)
 
 Make sure to check **"Add Python to PATH"** during installation.
 
-### 2. Run the Application
+#### 2. Run the Application
 
 Double-click **`Launch_Herald.bat`** - it will:
 - Request administrator privileges (required for global hotkeys)
@@ -182,9 +202,9 @@ Settings are saved to `config/settings.json`:
 
 | Setting | Options | Description |
 |---------|---------|-------------|
-| engine | edge, pyttsx3 | TTS engine (auto-selected based on voice) |
-| voice | aria, jenny, guy, christopher, zira, david | Voice name |
-| rate | 150-1500 | Words per minute (online: 150-900, offline: up to 1500) |
+| engine | kokoro, edge, pyttsx3 | TTS engine (kokoro is default in v0.3.0+) |
+| voice | heart, bella, michael, emma, aria, jenny, guy, christopher, zira, david | Voice name (varies by engine) |
+| rate | 100-1500 | Words per minute (varies by engine) |
 | hotkey_speak | ctrl+shift+s, alt+s, f9, alt+r | Speak hotkey |
 | hotkey_pause | ctrl+shift+p, alt+p, f10 | Pause hotkey |
 | hotkey_stop | escape, f12 | Stop hotkey |
@@ -199,9 +219,33 @@ Settings are saved to `config/settings.json`:
 | read_mode | lines, continuous | Line by line or read all text at once |
 | log_preview | true, false | Show text content in console/logs |
 
+## TTS Engines
+
+| Engine | Type | Internet | Voices | Speed Range | Notes |
+|--------|------|----------|--------|-------------|-------|
+| **Kokoro** (default) | Local neural | No | 27 | 100-600 wpm | Best quality up to ~260 wpm (1.3x). Quality degrades above that. All values above 600 wpm produce identical output (capped at 3.0x). |
+| **Edge TTS** | Cloud neural | Yes | 4 | 150-900 wpm | Microsoft Edge voices. Not for commercial use. |
+| **SAPI** | Windows built-in | No | 2 | 150-1500 wpm | Basic offline fallback. |
+
 ## Available Voices
 
-### Online (edge-tts)
+### Kokoro (local neural — default)
+
+| Voice | Gender | Accent | Grade |
+|-------|--------|--------|-------|
+| heart (default) | Female | American | A |
+| bella | Female | American | A- |
+| nicole | Female | American | B- |
+| sarah | Female | American | C+ |
+| nova, sky, alloy, jessica, kore, aoede, river | Female | American | — |
+| michael | Male | American | C+ |
+| fenrir, puck | Male | American | C+ |
+| adam, echo, eric, liam, onyx | Male | American | — |
+| emma | Female | British | B- |
+| alice, isabella, lily | Female | British | — |
+| daniel, george, lewis, fable | Male | British | — |
+
+### Edge TTS (online)
 
 | Voice | Description |
 |-------|-------------|
@@ -210,7 +254,7 @@ Settings are saved to `config/settings.json`:
 | guy | Male, friendly |
 | christopher | Male, professional |
 
-### Offline (pyttsx3/SAPI)
+### SAPI (offline)
 
 | Voice | Description |
 |-------|-------------|
@@ -236,28 +280,30 @@ Settings are saved to `config/settings.json`:
 - Offline voices (pyttsx3) don't support true pause
 
 ### Speed limits
-- Neural voices (edge-tts) have an effective range of 150-900 wpm
-- Offline voices support the full 150-1500 wpm range
-- Speed presets above 900 wpm are marked "(Offline)" in the tray menu
+- **Kokoro**: Best quality up to ~260 wpm (1.3x). Usable up to 600 wpm (3.0x). Values above 600 wpm are capped.
+- **Edge TTS**: Effective range 150-900 wpm
+- **SAPI**: Full 150-1500 wpm range
 
 ## Project Structure
 
 ```
 herald/
-├── Launch_Herald.bat     # Double-click to run
-├── requirements.txt      # Python dependencies
+├── cs/                        # C# rewrite (v0.3.0+)
+│   ├── Herald/                # WinForms app (hotkeys, OCR, tray, UI)
+│   ├── Herald.Tts/            # Shared TTS library (Kokoro, Edge, SAPI)
+│   ├── Herald.Tests/          # xUnit tests
+│   └── Herald.sln             # Solution file
+├── src/                       # Python version (v0.2.1)
+│   ├── main.py                # Application entry point
+│   ├── tts_engine.py          # TTS engine abstraction
+│   ├── tray_app.py            # System tray icon
+│   ├── text_grab.py           # Clipboard handling + OCR
+│   ├── region_capture.py      # Screen region selection
+│   └── config.py              # Settings management
 ├── config/
-│   └── settings.json     # Your settings (auto-created)
-├── logs/
-│   └── herald.log        # Application logs
-└── src/
-    ├── main.py           # Application entry point
-    ├── tts_engine.py     # TTS engine abstraction
-    ├── tray_app.py       # System tray icon
-    ├── text_grab.py      # Clipboard handling + OCR
-    ├── region_capture.py # Screen region selection
-    ├── config.py         # Settings management
-    └── utils.py          # Logging setup
+│   └── settings.json          # Your settings (shared format, auto-created)
+├── Launch_Herald.bat          # Python launcher
+└── requirements.txt           # Python dependencies
 ```
 
 ## Related Projects
