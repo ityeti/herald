@@ -89,7 +89,19 @@ public sealed class EdgeTtsEngine : ITtsEngine
             try
             {
                 audioFile = await SynthesizeToFileAsync(text);
-                if (_stopRequested || audioFile == null) return;
+                if (_stopRequested)
+                {
+                    _generating = false;
+                    _speaking = false;
+                    return;
+                }
+                if (audioFile == null)
+                {
+                    Log.Warning("EdgeTTS synthesis returned no audio file");
+                    _generating = false;
+                    _speaking = false;
+                    return;
+                }
                 _generating = false;
                 PlayAudioFile(audioFile);
             }
@@ -214,14 +226,16 @@ public sealed class EdgeTtsEngine : ITtsEngine
 
         try
         {
+            Log.Debug("EdgeTTS connecting to WebSocket for voice {Voice}, rate {Rate}", voiceId, ratePercent);
             await ws.ConnectAsync(new Uri(url), cts.Token);
+            Log.Debug("EdgeTTS WebSocket connected");
 
             // Send config message
             var configMsg =
-                $"Content-Type:application/json; charset=utf-8\r\n" +
-                $"Path:speech.config\r\n\r\n" +
-                $"{{\"context\":{{\"synthesis\":{{\"audio\":{{\"metadataoptions\":{{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"}}," +
-                $"\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}}}}}";
+                "Content-Type:application/json; charset=utf-8\r\n" +
+                "Path:speech.config\r\n\r\n" +
+                "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"}," +
+                "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}";
 
             await ws.SendAsync(
                 Encoding.UTF8.GetBytes(configMsg),
@@ -231,47 +245,67 @@ public sealed class EdgeTtsEngine : ITtsEngine
             var ssml = BuildSsml(text, voiceId, ratePercent);
             var ssmlMsg =
                 $"X-RequestId:{requestId}\r\n" +
-                $"Content-Type:application/ssml+xml\r\n" +
-                $"Path:ssml\r\n\r\n" +
+                "Content-Type:application/ssml+xml\r\n" +
+                "Path:ssml\r\n\r\n" +
                 ssml;
 
             await ws.SendAsync(
                 Encoding.UTF8.GetBytes(ssmlMsg),
                 WebSocketMessageType.Text, true, cts.Token);
 
-            // Receive audio data
-            var buffer = new byte[8192];
+            Log.Debug("EdgeTTS SSML sent, waiting for audio data");
+
+            // Receive audio data — accumulate full messages before parsing
+            var msgBuffer = new MemoryStream();
+            var recvBuffer = new byte[16384];
+
             while (true)
             {
                 if (_stopRequested) return null;
 
-                var result = await ws.ReceiveAsync(buffer, cts.Token);
+                var result = await ws.ReceiveAsync(recvBuffer, cts.Token);
                 if (result.MessageType == WebSocketMessageType.Close) break;
+
+                // Accumulate message fragments
+                msgBuffer.Write(recvBuffer, 0, result.Count);
+
+                if (!result.EndOfMessage) continue;
+
+                // Full message received — process it
+                var fullMsg = msgBuffer.ToArray();
+                msgBuffer.SetLength(0);
 
                 if (result.MessageType == WebSocketMessageType.Binary)
                 {
-                    // Binary messages: 2-byte header length + header + audio data
-                    if (result.Count > 2)
+                    // Binary: 2-byte big-endian header length, then header text, then audio bytes
+                    if (fullMsg.Length > 2)
                     {
-                        int headerLen = (buffer[0] << 8) | buffer[1];
+                        int headerLen = (fullMsg[0] << 8) | fullMsg[1];
                         int audioStart = 2 + headerLen;
-                        if (audioStart < result.Count)
+                        if (audioStart < fullMsg.Length)
                         {
-                            audioData.Write(buffer, audioStart, result.Count - audioStart);
+                            audioData.Write(fullMsg, audioStart, fullMsg.Length - audioStart);
                         }
                     }
                 }
                 else if (result.MessageType == WebSocketMessageType.Text)
                 {
-                    var msg = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    var msg = Encoding.UTF8.GetString(fullMsg);
                     if (msg.Contains("Path:turn.end"))
+                    {
+                        Log.Debug("EdgeTTS turn.end received, audio bytes: {Bytes}", audioData.Length);
                         break;
+                    }
                 }
             }
 
             if (ws.State == WebSocketState.Open)
             {
-                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                try
+                {
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                }
+                catch { }
             }
         }
         catch (OperationCanceledException)
@@ -287,7 +321,8 @@ public sealed class EdgeTtsEngine : ITtsEngine
 
         if (audioData.Length == 0)
         {
-            Log.Warning("EdgeTTS returned empty audio");
+            Log.Warning("EdgeTTS returned empty audio for text: {Text}",
+                text.Length > 50 ? text[..50] + "..." : text);
             return null;
         }
 
@@ -295,6 +330,7 @@ public sealed class EdgeTtsEngine : ITtsEngine
         var counter = Interlocked.Increment(ref _fileCounter);
         var tempFile = Path.Combine(Path.GetTempPath(), $"herald_edge_{counter}.mp3");
         await File.WriteAllBytesAsync(tempFile, audioData.ToArray());
+        Log.Debug("EdgeTTS audio saved to {File} ({Bytes} bytes)", tempFile, audioData.Length);
         return tempFile;
     }
 

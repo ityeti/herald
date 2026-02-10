@@ -152,12 +152,19 @@ public sealed class SapiEngine : ITtsEngine
     private SpeechSynthesizer CreateSynthesizer()
     {
         var synth = new SpeechSynthesizer();
+        synth.SetOutputToDefaultAudioDevice();
         synth.Rate = WpmToSapiRate(_rate);
         ApplyVoice(synth, _voiceName);
-        synth.SpeakCompleted += (_, _) =>
+        synth.SpeakCompleted += (_, e) =>
         {
             _speaking = false;
             _paused = false;
+            if (e.Error != null)
+                Log.Warning(e.Error, "SAPI speak error");
+        };
+        synth.SpeakStarted += (_, _) =>
+        {
+            Log.Debug("SAPI speak started");
         };
         return synth;
     }
