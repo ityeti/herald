@@ -1,0 +1,11 @@
+# Gitleaks allowlist configuration
+# The EdgeTTS TrustedClientToken is a well-known, publicly documented
+# Microsoft token used by all edge-tts clients — not a real secret.
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+    '''cs/Herald\.AudioTest/Program\.cs''',
+    '''cs/Herald\.Tts/EdgeTtsProtocol\.cs''',
+    '''cs/Herald/Tts/EdgeTtsEngine\.cs''',
+]

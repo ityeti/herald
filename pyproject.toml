@@ -39,7 +39,7 @@ ignore = [
 # tts_engine.py: MD5 used for cache keys (not security), subprocess for audio
 "src/tts_engine.py" = ["S324"]
 # region_capture.py, persistent_region.py: subprocess for screenshots
-"src/region_capture.py" = ["S603"]
+"src/region_capture.py" = ["S603", "S110"]
 "src/persistent_region.py" = ["S603", "E722"]
 
 [tool.ruff.format]

@@ -112,3 +112,8 @@ Saved to `config/settings.json`:
 - [whisper-typer](../whisper-typer/) — Voice-to-text (input), herald is the inverse (output)
 - [voxbox](../voxbox/) — Unified app combining both
 - [dev-oversight](../dev-oversight/) — Project oversight and tracking
+
+## Session Log
+**Central log:** [../dev-oversight/SESSION_LOG.md](../dev-oversight/SESSION_LOG.md)
+
+At session end or on "checkpoint", prepend a summary entry to the central session log.
