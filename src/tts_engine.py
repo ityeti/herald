@@ -13,7 +13,29 @@ import threading
 from abc import ABC, abstractmethod
 from loguru import logger
 
+import ctypes
+
 from config import MIN_RATE, MAX_RATE, load_settings, set_setting, PROJECT_ROOT
+
+# Speaking mutex — lets external tools (claude-narrator) know Herald is actively speaking
+_SPEAKING_MUTEX_NAME = "Global\\HeraldSpeaking"
+_speaking_mutex_handle = None
+
+
+def _acquire_speaking_mutex():
+    global _speaking_mutex_handle
+    if _speaking_mutex_handle:
+        return  # already held
+    kernel32 = ctypes.windll.kernel32
+    _speaking_mutex_handle = kernel32.CreateMutexW(None, True, _SPEAKING_MUTEX_NAME)
+
+
+def _release_speaking_mutex():
+    global _speaking_mutex_handle
+    if _speaking_mutex_handle:
+        ctypes.windll.kernel32.ReleaseMutex(_speaking_mutex_handle)
+        ctypes.windll.kernel32.CloseHandle(_speaking_mutex_handle)
+        _speaking_mutex_handle = None
 
 
 class BaseTTSEngine(ABC):
@@ -137,6 +159,7 @@ class Pyttsx3Engine(BaseTTSEngine):
 
         def _speak_thread():
             self._speaking = True
+            _acquire_speaking_mutex()
             self._paused = False
             try:
                 engine = self._get_engine()
@@ -146,6 +169,7 @@ class Pyttsx3Engine(BaseTTSEngine):
                 logger.error(f"TTS error: {e}")
             finally:
                 self._speaking = False
+                _release_speaking_mutex()
 
         self._thread = threading.Thread(target=_speak_thread, daemon=True)
         self._thread.start()
@@ -157,6 +181,7 @@ class Pyttsx3Engine(BaseTTSEngine):
             except Exception:  # noqa: S110
                 pass
         self._speaking = False
+        _release_speaking_mutex()
         self._paused = False
         self._engine = None
 
@@ -333,6 +358,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._stop_requested = True
         self._generating = False
         self._speaking = False
+        _release_speaking_mutex()
         self._paused = False
         with self._mixer_lock:
             try:
@@ -405,6 +431,7 @@ class EdgeTTSEngine(BaseTTSEngine):
                 # Done generating, now playing
                 self._generating = False
                 self._speaking = True
+                _acquire_speaking_mutex()
 
                 # Play the audio (with lock for thread safety)
                 with self._mixer_lock:
@@ -445,6 +472,7 @@ class EdgeTTSEngine(BaseTTSEngine):
             finally:
                 self._generating = False
                 self._speaking = False
+                _release_speaking_mutex()
                 self._cleanup_audio()
 
         self._thread_start_time = time.time()
@@ -566,6 +594,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._stop_requested = True
         self._generating = False
         self._speaking = False
+        _release_speaking_mutex()
         self._paused = False
         with self._mixer_lock:
             try:
