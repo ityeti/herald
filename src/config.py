@@ -79,7 +79,7 @@ DEFAULT_VOICE = "aria"
 # Logging
 LOG_DIR = "logs"
 LOG_FILE = "herald.log"
-LOG_ROTATION = "10 MB"
+LOG_ROTATION = "1 day"  # Daily rotation (was 10MB — too high, never triggered)
 LOG_RETENTION = "7 days"
 
 # Engine: "edge" (online, better quality) or "pyttsx3" (offline)

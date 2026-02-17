@@ -21,6 +21,7 @@ Hotkeys (all configurable via tray menu and settings.json):
 Requires admin privileges on Windows for global hotkeys.
 """
 
+import os
 import sys
 import warnings
 
@@ -104,8 +105,15 @@ def ensure_single_instance(force: bool = False):
 
     MUTEX_NAME = "Global\\HeraldSingleInstance"
 
-    # Try to create a named mutex
+    # Set proper argtypes for 64-bit Windows (prevents handle truncation)
+    from ctypes import wintypes
     kernel32 = ctypes.windll.kernel32
+    kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
+    kernel32.GetLastError.argtypes = []
+    kernel32.GetLastError.restype = wintypes.DWORD
+
+    # Try to create a named mutex
     _instance_mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
     last_error = kernel32.GetLastError()
 
@@ -113,11 +121,12 @@ def ensure_single_instance(force: bool = False):
     if last_error == 183:
         print("Herald is already running. Check your system tray.")
         print("To start a new instance, close the existing one first.")
-        print("\nIf Herald is not visible, run: taskkill /F /IM python.exe")
+        print(f"\nIf Herald is not visible, run: taskkill /F /IM python.exe")
         print("Or restart Windows to clear the lock.")
         input("\nPress Enter to exit...")
         sys.exit(0)
 
+    logger.debug(f"Single instance mutex acquired (PID {os.getpid()})")
     return True
 
 
@@ -1254,8 +1263,12 @@ def main():
 
         # Release the mutex
         if _instance_mutex:
-            ctypes.windll.kernel32.ReleaseMutex(_instance_mutex)
-            ctypes.windll.kernel32.CloseHandle(_instance_mutex)
+            from ctypes import wintypes
+            kernel32 = ctypes.windll.kernel32
+            kernel32.ReleaseMutex.argtypes = [wintypes.HANDLE]
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel32.ReleaseMutex(_instance_mutex)
+            kernel32.CloseHandle(_instance_mutex)
 
         logger.info("Herald stopped")
         sys.exit(0)
