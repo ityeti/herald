@@ -126,7 +126,6 @@ def ensure_single_instance(force: bool = False):
         input("\nPress Enter to exit...")
         sys.exit(0)
 
-    logger.debug(f"Single instance mutex acquired (PID {os.getpid()})")
     return True
 
 
@@ -1166,6 +1165,7 @@ def main():
     ensure_single_instance(force=force_start)
 
     setup_logging()
+    logger.debug(f"Herald PID {os.getpid()}")
 
     # Load settings
     settings = load_settings()
