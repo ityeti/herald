@@ -35,10 +35,18 @@ Feature tracking and version history for Herald.
 - [x] Auto-read mode (polls region, reads when text changes 50%+)
 - [x] Verbal error alerts (speaks errors via offline fallback when edge-tts fails)
 - [x] Diagnostic logging for audio generation and playback
+- [x] Tray icon state-change optimization (only update on transition, prevents blink)
+- [x] RDP session event debounce (3s timer coalesces rapid connect/disconnect storms)
+- [x] EdgeTTS generation timeout (30s) and prefetch timeout (15s) via asyncio.wait_for
+- [x] Stuck thread auto-recovery (heartbeat force-stops threads stuck >60s)
+- [x] Claude Code output filtering (diff markers, tool headers, code fences, CLI commands)
+- [x] Daily log rotation with 7-day retention
+- [x] 64-bit Windows mutex fix for single-instance guard
 
 ## Backlog
 
 - [ ] Add "OCR" label back to region selection window (upper left corner) for clarity
+- [ ] Edge-tts Python library version audit (Microsoft API/DRM changes)
 
 ## Someday/Maybe
 

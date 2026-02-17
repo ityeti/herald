@@ -103,6 +103,7 @@ herald/
 │   ├── region_capture.py  # Screen region selection overlay
 │   ├── persistent_region.py # Continuous OCR monitoring
 │   ├── tray_app.py        # System tray icon and menu
+│   ├── text_filter.py     # Text cleanup for TTS (code, URLs, Claude output)
 │   ├── config.py          # Settings management
 │   └── utils.py           # Logging setup
 ├── tests/                  # pytest test suite
@@ -119,8 +120,17 @@ herald/
 - **Prefetch thread**: Background generation of next line
 - **Persistent region thread**: OCR polling for auto-read mode
 - **Tray thread**: pystray icon event loop
+- **Session monitor thread**: WTS session event listener (lock/unlock/RDP)
 
 All pygame mixer operations are protected by `_mixer_lock` to prevent race conditions.
+
+### Stability Mechanisms
+
+- **Heartbeat monitor**: 60s interval checks queue length, speaking/paused state, mixer health, and hook thread liveness. Force-stops threads stuck for >60s.
+- **Session event debounce**: RDP connect/disconnect fires rapid bursts of events. A 3s `threading.Timer` coalesces these into a single mixer reinit, preventing concurrent reinit storms.
+- **Tray state tracking**: `_last_tray_state` variable prevents redundant icon updates. Only calls tray setters when state actually changes (idle/generating/speaking/paused), eliminating visual blink from 50ms polling.
+- **Generation timeouts**: `asyncio.wait_for()` wraps edge-tts generation (30s) and prefetch (15s) to prevent indefinite hangs on network issues.
+- **Single-instance mutex**: `CreateMutexW` with proper 64-bit `argtypes`/`restype` declarations prevents duplicate processes. Logs PID on startup.
 
 ## Settings Persistence
 
