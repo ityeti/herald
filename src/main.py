@@ -156,6 +156,9 @@ _action_queue: queue.Queue = queue.Queue()
 # Heartbeat tracking for diagnostics
 _last_heartbeat = 0.0
 
+# Tray state tracking to avoid redundant updates (prevents icon blink)
+_last_tray_state: str | None = None  # "idle", "generating", "speaking", "paused"
+
 
 def on_speak_hotkey():
     """Called when the speak hotkey is pressed."""
@@ -431,7 +434,14 @@ def _maybe_log_heartbeat():
         )
 
         if thread_age > 60:
-            logger.warning(f"Speak thread stuck for {thread_age:.0f}s")
+            logger.warning(f"Speak thread stuck for {thread_age:.0f}s — force-stopping")
+            engine.stop()
+            _clear_queue()
+            if _tray_app:
+                _tray_app.set_speaking(False)
+                _tray_app.set_paused(False)
+                _tray_app.set_generating(False)
+            _last_tray_state = None  # Force tray state refresh
 
         # Auto-recovery: reinitialize mixer if dead
         if not mixer_ok and hasattr(engine, "reinitialize_mixer"):
@@ -921,7 +931,7 @@ def on_reset_hotkeys():
 
 def update_tray_state():
     """Update tray icon state based on engine state and handle auto-advance."""
-    global _was_speaking, _current_line_index
+    global _was_speaking, _current_line_index, _last_tray_state
 
     engine = get_engine()
 
@@ -939,24 +949,30 @@ def update_tray_state():
         else:
             logger.info("Finished all lines")
             _clear_queue()
-            # Reset tray state immediately so icon doesn't stay "active"
-            if _tray_app:
-                _tray_app.set_speaking(False)
-                _tray_app.set_paused(False)
-                _tray_app.set_generating(False)
 
     _was_speaking = is_active
 
-    # Update tray icon
-    if not _tray_app:
-        return
-
-    # Check generating first (edge-tts only)
+    # Determine current state
     if hasattr(engine, "is_generating") and engine.is_generating:
-        _tray_app.set_generating(True)
+        new_state = "generating"
     elif engine.is_speaking:
-        _tray_app.set_speaking(True)
+        new_state = "speaking"
     elif engine.is_paused:
+        new_state = "paused"
+    else:
+        new_state = "idle"
+
+    # Only update tray if state actually changed (prevents icon blink from
+    # redundant 50ms updates that cause pystray to flicker on Windows)
+    if new_state == _last_tray_state or not _tray_app:
+        return
+    _last_tray_state = new_state
+
+    if new_state == "generating":
+        _tray_app.set_generating(True)
+    elif new_state == "speaking":
+        _tray_app.set_speaking(True)
+    elif new_state == "paused":
         _tray_app.set_paused(True)
     else:
         _tray_app.set_speaking(False)
@@ -1006,11 +1022,12 @@ def _start_session_monitor():
             # Define WNDPROC callback type
             WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_long, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
 
-            def _reinit_mixer_after_delay():
-                """Reinitialize the audio mixer after a delay to let the new audio device stabilize."""
-                import time
+            # Debounce: coalesce rapid session events into a single mixer reinit
+            _reinit_timer: threading.Timer | None = None
+            _reinit_lock = threading.Lock()
 
-                time.sleep(1.5)
+            def _reinit_mixer_debounced():
+                """Reinitialize the audio mixer (called after debounce settles)."""
                 try:
                     from tts_engine import get_engine, EdgeTTSEngine
 
@@ -1021,19 +1038,26 @@ def _start_session_monitor():
                 except Exception as e:
                     logger.warning(f"Mixer reinit on session change failed: {e}")
 
+            def _schedule_reinit():
+                """Schedule a mixer reinit, cancelling any pending one (debounce 3s)."""
+                nonlocal _reinit_timer
+                with _reinit_lock:
+                    if _reinit_timer is not None:
+                        _reinit_timer.cancel()
+                    _reinit_timer = threading.Timer(3.0, _reinit_mixer_debounced)
+                    _reinit_timer.daemon = True
+                    _reinit_timer.start()
+
             def wnd_proc(hwnd, msg, wparam, lparam):
                 if msg == WM_WTSSESSION_CHANGE:
                     event_name = SESSION_EVENTS.get(wparam, f"Unknown({wparam})")
                     logger.info(f"Session event: {event_name} (session_id={lparam})")
 
                     # Reinitialize audio mixer on session transitions so audio
-                    # follows the new default device (e.g., RDP virtual device)
+                    # follows the new default device (e.g., RDP virtual device).
+                    # Debounced: waits 3s after last event to avoid storm of reinits.
                     if wparam in (WTS_REMOTE_CONNECT, WTS_CONSOLE_CONNECT):
-                        threading.Thread(
-                            target=_reinit_mixer_after_delay,
-                            daemon=True,
-                            name="MixerReinit",
-                        ).start()
+                        _schedule_reinit()
                 elif msg == WM_DESTROY:
                     user32.PostQuitMessage(0)
                     return 0

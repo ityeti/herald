@@ -400,10 +400,13 @@ class EdgeTTSEngine(BaseTTSEngine):
                     self._file_counter += 1
                     audio_file = str(self._temp_dir / f"herald_{self._file_counter}.mp3")
 
-                    # Run async edge-tts (this is the slow part)
+                    # Run async edge-tts with timeout (prevents indefinite hangs
+                    # from network issues or WebSocket disconnects)
+                    GENERATION_TIMEOUT = 30  # seconds
+
                     async def generate():
                         communicate = edge_tts.Communicate(text, voice_id, rate=rate)
-                        await communicate.save(audio_file)
+                        await asyncio.wait_for(communicate.save(audio_file), timeout=GENERATION_TIMEOUT)
 
                     asyncio.run(generate())
 
@@ -501,9 +504,11 @@ class EdgeTTSEngine(BaseTTSEngine):
                 self._file_counter += 1
                 audio_file = str(self._temp_dir / f"herald_prefetch_{self._file_counter}.mp3")
 
+                PREFETCH_TIMEOUT = 15  # seconds (shorter than speak timeout)
+
                 async def generate():
                     communicate = edge_tts.Communicate(text, voice_id, rate=rate)
-                    await communicate.save(audio_file)
+                    await asyncio.wait_for(communicate.save(audio_file), timeout=PREFETCH_TIMEOUT)
 
                 asyncio.run(generate())
 

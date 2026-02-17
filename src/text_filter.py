@@ -133,6 +133,8 @@ CLI_COMMANDS = [
     "brew ",
     "choco ",
     "winget ",
+    "dotnet ",
+    "claude ",
 ]
 
 # Compile code patterns
@@ -162,6 +164,30 @@ MENTION_PATTERN = re.compile(r"@(\w+)")  # @user -> user
 
 # Email pattern for filtering standalone email lines
 EMAIL_PATTERN = re.compile(r"^[\s]*[\w.-]+@[\w.-]+\.\w+[\s]*$", re.IGNORECASE)
+
+# Claude Code / LLM tool output patterns
+CLAUDE_CODE_PATTERNS = [
+    # Tool use headers (Read, Edit, Write, Bash, Grep, Glob, etc.)
+    re.compile(r"^[\s]*[A-Z][a-z]+\s+tool", re.IGNORECASE),
+    # Diff markers
+    re.compile(r"^[\s]*[+-]{3}\s+(a|b)/"),  # --- a/file, +++ b/file
+    re.compile(r"^[\s]*@@\s+[-+]\d"),  # @@ -1,3 +1,4 @@
+    re.compile(r"^[\s]*[+-]\s"),  # +added / -removed lines
+    # Claude CLI commands
+    re.compile(r"^[\s]*claude\s+(--resume|--continue|--model|code)", re.IGNORECASE),
+    # Progress/status indicators
+    re.compile(r"^[\s]*\[\d+/\d+\]"),  # [1/5] progress counters
+    re.compile(r"^[\s]*\.\.\.$"),  # bare ellipsis (thinking indicator)
+    re.compile(r"^[\s]*(Reading|Writing|Editing|Searching|Running)\s+.+\.\.\.", re.IGNORECASE),
+    # Token/cost summaries
+    re.compile(r"^[\s]*(tokens?|cost|input|output)\s*:", re.IGNORECASE),
+    # Co-authored-by lines
+    re.compile(r"^[\s]*Co-Authored-By:", re.IGNORECASE),
+    # Markdown headers that are just formatting (# with no meaningful content)
+    re.compile(r"^[\s]*#{1,6}\s*$"),
+    # Fence markers for code blocks
+    re.compile(r"^[\s]*```"),
+]
 
 # Patterns for inline URL/path detection (embedded in sentences)
 INLINE_URL_PATTERN = re.compile(r'https?://[^\s<>"\')\]]+|www\.[^\s<>"\')\]]+', re.IGNORECASE)
@@ -366,7 +392,15 @@ def is_code_like(line: str) -> bool:
         return True
 
     # Check for standalone email addresses
-    return bool(EMAIL_PATTERN.match(stripped))
+    if EMAIL_PATTERN.match(stripped):
+        return True
+
+    # Check for Claude Code / LLM tool output patterns
+    for pattern in CLAUDE_CODE_PATTERNS:
+        if pattern.match(stripped):
+            return True
+
+    return False
 
 
 def filter_lines(lines: list[str], filter_code: bool = True) -> list[str]:
