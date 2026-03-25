@@ -312,6 +312,12 @@ herald/
 
 - [Whisper Voice-to-Text](https://github.com/ityeti/whisper-typer) - The inverse: speech-to-text
 
+## Herald Pro
+
+**[Get Herald Pro on the Microsoft Store](https://apps.microsoft.com/detail/9PBB7S63P441)** -- Free, 41 AI neural voices in 6 languages, fully offline. Includes batch audio export, sentence highlighting, voice preview, and EPUB/PDF/DOCX import.
+
+[![Microsoft Store](https://img.shields.io/badge/Microsoft_Store-Free-brightgreen?logo=microsoft)](https://apps.microsoft.com/detail/9PBB7S63P441)
+
 ## License
 
 MIT License - feel free to use and modify.
